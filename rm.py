@@ -154,8 +154,10 @@ class streamer(object):
                 retval = False
                 frame = None
             # error message: [mpjpeg @ ] Expected boundary '--' not found, instead found a line of
-            # is generated from the read() function. This message, according to my observation, is closely related to "green screen" error.
-            # As I understand, this error is caused by lower-than-necessary network speed (rpi-corridor is sending data at 10MB/S and it seems that this is not fast enough)
+            # is generated from the read() function. This message, according to my observation, is closely
+            # related to "green screen" error.
+            # As I understand, this error is caused by lower-than-necessary network speed (rpi-corridor
+            # is sending data at 10MB/S and it seems that this is not fast enough)
             if retval is False:
                 streamer.error_count[thread_id] += 1
                 logging.error('[{}] Interal loop cannot get new frame from '
