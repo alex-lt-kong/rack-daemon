@@ -5,6 +5,6 @@ A temperature monitoring and fans control tool for server rack cabinet
 
 
 <p float="left">
-  <img src="./images/desktop.png" width="300" />
-  <img src="./images/smartphone.png" width="100" /> 
+  <img src="./images/desktop.png" height="600" />
+  <img src="./images/smartphone.png" height="600" /> 
 </p>
