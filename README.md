@@ -11,9 +11,9 @@ A temperature monitoring and fans control tool for server rack cabinet
 # Hardware Installation
 
 <p float="left">
-    <img src="./images/raspberry-pi.jpg" height="500" alt="Raspberry Pi" />    
-    <img src="./images/ipcam.jpg" height="500" alt="IPCam" />
-    <img src="./images/cooling-fans.jpg" height="500" alt="Cooling Fans" />
+    <img src="./images/raspberry-pi.jpg" height="300" alt="Raspberry Pi" />    
+    <img src="./images/ipcam.jpg" height="300" alt="IPCam" />
+    <img src="./images/cooling-fans.jpg" height="300" alt="Cooling Fans" />
 </p>
 
 
