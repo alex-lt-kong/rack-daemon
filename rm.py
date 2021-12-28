@@ -508,7 +508,7 @@ def main():
         format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
     )
-    logging.info('rack-manager started') 
+    logging.info('Rack Monitor started') 
 
 
     emailer = importlib.machinery.SourceFileLoader(
@@ -517,7 +517,7 @@ def main():
                 ).load_module()
     th_email = threading.Thread(target=emailer.send_service_start_notification,
                                 kwargs={'settings_path': os.path.join(app_dir, 'settings.json'),
-                                        'service_name': "Rack Manager",
+                                        'service_name': "Rack Monitor",
                                         'log_path': settings['app']['log_path'],
                                         'delay': 0 if debug_mode else 300})
     th_email.start()
@@ -535,7 +535,7 @@ def main():
     th_stream_video.start()
     
     waitress.serve(app, host="127.0.0.1", port=88)
-    logging.info('rack-manager finished')
+    logging.info('Rack Monitor finished')
 
 
 if __name__ == '__main__':
