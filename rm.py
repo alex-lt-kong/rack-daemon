@@ -291,21 +291,16 @@ def control():
     if 'username' in session:
         pass
     else:
-        return Response('Not logged in', 500)
-
-    if request.method != 'POST':
-        return Response('fans_mode not specified', 500)
-
-    fans_mode = request.form.get("fans_mode", None)
+        return Response('Not logged in', 400)
 
     try:
-        fans_mode = int(fans_mode)
+        fans_mode = int(request.form.get("fans_mode", None))
         if fans_mode > 100:
             fans_mode = 100
         if fans_mode < 0:
             fans_mode = -1
     except Exception as e:
-        return Response(f'invalid fans_mode [{fans_mode}], {e}', 500)
+        return Response(f'invalid fans_mode [{fans_mode}], {e}', 400)
 
     fm = {'fans_mode': fans_mode}
     try:
@@ -316,7 +311,7 @@ def control():
             logging.info(f'fans_mode changed to {fans_mode}')
     except Exception as e:
         logging.error(f'Failed to save new fans_mode: {e}')
-        return Response(f'Failed to save new fans_mode: {e}', 400)
+        return Response(f'Failed to save new fans_mode.', 500)
 
     return Response(f'Success: fans_mode changed to {fans_mode}.', 200)
 
@@ -336,15 +331,20 @@ def index():
         fans_mode = int(settings['fans_mode'])
     except Exception as e:
         fans_mode = None
-        return Response(f'Unable to read from json file: {e}', 400)
         logging.error(e)
+        return Response(f'Unable to read from json file', 500)
+        
+    kwargs = {
+        "username": username,
+        "app_address": app_address,
+        "fans_mode": fans_mode,
+        "fans_load_tuned": fans_load_tuned,
+        "temperatures": [int(x) for x in temperatures]
+    }
 
-    return render_template('index.html',
-                           username=username,
-                           fans_mode=fans_mode,
-                           fans_load_tuned=fans_load_tuned,
-                           temperatures=[int(x) for x in temperatures])
-                           # int() allows temperatures to fit small screens
+
+    return render_template('index.html', **kwargs)
+                           # int() allows temperatures to fit into small screens
 
 
 def fans_controller_loop():
@@ -409,8 +409,7 @@ def fans_controller_loop():
         try:
             json_file = open(fans_mode_path)
             json_str = json_file.read()
-            settings = json.loads(json_str)
-            fans_mode = int(settings['fans_mode'])
+            fans_mode = int(json.loads(json_str))
         except Exception as e:
             logging.error(f'Failed to load new fans_mode: {e}')
             fans_mode = -1
@@ -426,7 +425,7 @@ def fans_controller_loop():
                        .format(
                             settings['app']['telemetry']['url'],
                             settings['app']['telemetry']['device_token'],
-                            emperatures[i], locations[i])
+                            temperatures[i], locations[i])
                     )
                 start = dt.datetime.now()
                 r = requests.get(url=url)
@@ -473,7 +472,7 @@ def cleanup(*args):
     stop_signal = True
     # GPIO.cleanup()
     # This line is believed to be unnecessary since it has executed
-    # dome in the loop thread
+    # in the loop thread
     logging.info('Stop signal received, exiting')
     sys.exit(0)
 

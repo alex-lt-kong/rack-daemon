@@ -1,19 +1,22 @@
 <!DOCTYPE html>
 <meta name="viewport" content="width=device-width">
-<link rel="shortcut icon" href="//rpi-rack.sz.lan/static/favicon.png">
-<link rel="stylesheet" href="//monitor.sz.lan/resources/w3.css">
-<link rel="stylesheet" href="//monitor.sz.lan/resources/w3-colors-2017.css">
-<link rel="stylesheet" href="//monitor.sz.lan/resources/w3-colors-highway.css">
+<link rel="shortcut icon" href="{{app_address}}/static/favicon.png">
+<link rel="stylesheet" href="{{app_address}}/static/lib/w3css/4/w3.css">
+<link rel="stylesheet" href="{{app_address}}/static/lib/w3css/w3-colors-2017.css">
+<link rel="stylesheet" href="{{app_address}}/static/lib/w3css/w3-colors-highway.css">
 
 <html>
-<head><title>Rack Manager [{{username}}]</title></head>
+<head><title>Rack Monitor [{{username}}]</title></head>
 
 <body>
   <div class="w3-container w3-padding-16" style="max-width: 45em; display: block; margin-left: auto; margin-right: auto;">
     <div class="w3-card-4">
       <header class="w3-container w3-highway-blue">
         <h3>
-          Rack Manager<span class="w3-right" style="margin-bottom:1rem;font-size:0.65em;">[{{username}}],&nbsp;<a href="#" onclick="logout();">Logout</a></span>
+          Rack Monitor
+          <span class="w3-right" style="margin-bottom:1rem;font-size:0.65em;">
+            [{{username}}],&nbsp;<a href="#" onclick="logout();">Logout</a>
+          </span>
         </h3>
       </header>
       <div class="w3-container"><h4>Live Image</h4></div>
@@ -64,7 +67,7 @@
   </div>
 <script>
 function logout() {
-  window.location.replace('../logout/');
+  window.location.replace('{{app_address}}/logout/');
 }
 
 function changeFansMode() {
@@ -92,13 +95,13 @@ function changeFansMode() {
     document.getElementById('okay-button').style.display = 'block';
   }
     
-  XHR.open('POST', './control/');
+  XHR.open('POST', '{{app_address}}/control/');
   XHR.send(FD);
   };
   
 setInterval(function() {
     var img = document.getElementById('live-image');
-    img.src = "./live_image/?rand=" + Math.floor(Math.random() * (99999 - 10000 + 1)) + 10000;    
+    img.src = "{{app_address}}/live_image/?rand=" + Math.floor(Math.random() * (99999 - 10000 + 1)) + 10000;    
 }, 3000);
   
 </script>
