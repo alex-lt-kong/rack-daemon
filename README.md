@@ -9,5 +9,7 @@ A temperature monitoring and fans control tool for server rack cabinet
     <img src="./images/desktop.png" height="600" />
     <figcaption>Desktop</figcaption>
   </figure>
-  <img src="./images/smartphone.png" height="600" /> 
+  <figure>
+    <img src="./images/smartphone.png" height="600" />
+  </figure>
 </p>
