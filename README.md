@@ -13,11 +13,24 @@ A tool developed in Python to:
     <img src="./images/smartphone.png" height="600" alt="Mobile GUI" />
 </p>
 
-# Wiring Diagram
+# Hardware
+
+## Wiring Diagram
 
 <img src="./images/wiring-diagram.png" alt="Wiring Diagram" />
 
-# Hardware Installation
+## Raspberry Pi Rack Mount Design
+
+<img src="./images/rackmount-design.png" alt="Raspberry Pi Rackmount Design" />
+
+## Components
+### IRF520 MOS Driver Module
+<img src="./images/mos-driver-module.jpeg" alt="IRF520 MOS Driver Module" />
+
+### Resistors
+
+
+## Installation
 
 <p float="left">
     <img src="./images/raspberry-pi.jpg" height="450" alt="Raspberry Pi" />    
