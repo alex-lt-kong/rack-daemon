@@ -1,0 +1,284 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+
+from flask import Flask, redirect, render_template, Response, request, url_for
+
+import argparse
+import datetime
+import json
+import logging
+import os
+import pymysql
+import requests
+import RPi.GPIO as GPIO
+import signal
+import smtplib
+import sys
+import threading
+import time
+import waitress
+
+app = Flask(__name__)
+
+INVALID_VALUE = -65536
+
+# 28.0301a279faf2 is the shorter one in the rack
+# 28-030997792b61 is the shortest one in the rack
+# 28-01144ebe52aa and 28-01144ef1faaa are the 2-meter long ones
+sensors = ['/sys/bus/w1/devices/28-0301a279faf2/', '/sys/bus/w1/devices/28-030997792b61/', '/sys/bus/w1/devices/28-01144ebe52aa/', '/sys/bus/w1/devices/28-01144ef1faaa/']
+stop_signal = False
+locations = ['rack-front', 'rack-back', 'rack-ambient1', 'rack-ambient2']
+log_path = '/root/bin/fans-controller/static/temperature.log'
+fans_mode_path = '/root/bin/fans-controller/fans.mode'
+fans_mode_changed = True
+temperatures = [-1, -1, -1, -1]
+
+
+def request_sender(url: str):
+
+    start = datetime.datetime.now()
+    r = requests.get(url, auth=('telemetry', '7e1em3trY'))
+    response_timestamp = datetime.datetime.now()
+    response_time = int((response_timestamp - start).total_seconds() * 1000)
+    response_text = r.content.decode("utf-8")
+    return response_text, r.status_code, response_timestamp, response_time
+
+@app.route('/', methods=['GET', 'POST'])
+def index():
+
+    global fans_mode_changed
+
+    try:
+        json_file = open(fans_mode_path)
+        json_str = json_file.read()
+        json_data = json.loads(json_str)
+        fans_mode = int(json_data['fans_mode'])
+    except:
+        fans_mode = -1
+        logging.error(sys.exc_info())
+
+    if request.method == "POST":
+        fans_mode = request.form.get("fans_mode", None)
+        try:
+            fans_mode = int(fans_mode)
+            if fans_mode > 100:
+                fans_mode = 100
+            if fans_mode < 0:
+                fans_mode = -1
+        except:
+            fans_mode = -1
+
+        fm = {'fans_mode': fans_mode}
+        try:
+            with open(fans_mode_path, 'w+') as json_file:
+                json.dump(fm, json_file)
+                fans_mode_changed = True
+                logging.info('fans_mode changed to {}'.format(fans_mode))
+        except:
+            logging.error('Failed to save new fans_mode: {}'.format(sys.exc_info()))
+
+    db = pymysql.connect(host="localhost", user="fans", passwd="H5CTF5XqgC", db="fans")
+    db.autocommit(True) # It appears that both UPDATE and SELECT need "commit"
+    cursor = db.cursor()
+
+    sql = "SELECT id, time, sensor_0, sensor_1, sensor_2, sensor_3, load_tuned FROM `statistics` ORDER BY id DESC LIMIT 674";   # 4 * 24 * 7 = 674
+    cursor.execute(sql)
+    result = cursor.fetchall()
+    cursor.close()
+    db.close()
+
+    sensor_string = ['', '', '', '']
+    time_string = ''
+    load_string = ''
+    for row in reversed(result):
+        time_string += '"' + str(row[1]) + '", '
+
+        if int(row[2]) != INVALID_VALUE:
+            sensor_string[0] += str(row[2]) + ', '
+        else:
+            sensor_string[0] += ' , '
+
+        if int(row[3]) != INVALID_VALUE:
+            sensor_string[1] += str(row[3]) + ', '
+        else:
+            sensor_string[1] += ' , '
+
+        if int(row[4]) != INVALID_VALUE:
+            sensor_string[2] += str(row[4]) + ', '
+        else:
+            sensor_string[2] += ' , '
+
+        if int(row[5]) != INVALID_VALUE:
+            sensor_string[3] += str(row[5]) + ', '
+        else:
+            sensor_string[3] += ' , '
+
+        load_string += str(row[6]) + ', '
+        #print(row)
+
+    return render_template('index.html', sensor_string=sensor_string, locations=locations, time_string=time_string, load_string=load_string, fans_mode=fans_mode)
+
+@app.route('/log', methods=['GET', 'POST'])
+def log():
+    with open(log_path, 'r') as f:
+        return f.read().replace('\n', '<br>')
+    return 'No log to show'
+
+def fans_controller_loop():
+
+    global fans_mode_changed
+    global stop_signal
+
+    sample_interval = 60
+    loop_delay = 1
+    sample_count = 0
+    gpio_pin = 23
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(gpio_pin, GPIO.OUT)
+
+    pwm = GPIO.PWM(gpio_pin, 50)  #  Frequency is 50Hz
+    pwm.start(0)
+
+    while stop_signal == False:
+
+        time.sleep(loop_delay)
+        sample_count += 1
+        if loop_delay * sample_count < sample_interval and fans_mode_changed == False:
+            continue
+
+        sample_count = 0
+        fans_mode_changed = False
+
+        for i in range(0, len(sensors)):
+            if stop_signal == True:
+                break
+            try:
+                with open(os.path.join(sensors[i], 'w1_slave'), 'r') as f:
+                    data = f.read()
+
+                    if "YES" in data:
+                        (discard, sep, reading) = data.partition(' t=')
+                        temperatures[i] = round(float(reading) / 1000.0, 1)
+                    else:
+                        temperatures[i] = INVALID_VALUE
+                        logging.error('Failed to read temperature from sensor_{}'.format(i))
+                    logging.debug('temperature from sensor{}: {}'.format(i, temperatures[i]))
+            except: # in case temperature sensors are disconnected
+                temperatures[i] = INVALID_VALUE
+
+        high_temperature = abs(temperatures[1] - temperatures[0]) * 0.25 + (temperatures[1] + temperatures[0]) / 2
+        low_temperature = (temperatures[2] + temperatures[3]) / 2
+        delta = round(high_temperature - low_temperature, 1)
+        load_raw = int(delta * 100 / 10)
+        load_tuned = load_raw
+
+        if load_tuned > 100:
+            load_tuned = 100
+        if load_tuned < 25 and load_tuned >= 12.5:
+            load_tuned = 25
+        if load_tuned < 12.5:
+            load_tuned = 0
+
+        try:
+            json_file = open(fans_mode_path)
+            json_str = json_file.read()
+            json_data = json.loads(json_str)
+            fans_mode = int(json_data['fans_mode'])
+        except:
+            logging.error('Failed to load new fans_mode: {}'.format(sys.exc_info()))
+            fans_mode = -1
+        if fans_mode != -1:
+            load_tuned = fans_mode
+        logging.debug('delta: {}, load_raw: {}, fans_mode: {}, load_tuned: {}'.format(delta, load_raw, fans_mode, load_tuned))
+
+        db = pymysql.connect(host="localhost", user="fans", passwd="H5CTF5XqgC", db="fans")
+        db.autocommit(True) # It appears that both UPDATE and SELECT need "commit"
+        cursor = db.cursor()
+
+        sql = "INSERT INTO `statistics` (sensor_0, sensor_1, sensor_2, sensor_3, load_tuned, load_raw) VALUES (%s, %s, %s, %s, %s, %s)";
+        cursor.execute(sql, (temperatures[0], temperatures[1], temperatures[2], temperatures[3], load_tuned, load_raw))
+
+#        for i in range(len(temperatures)):
+#            try:
+#                response_text, status_code, response_timestamp, response_time = request_sender('https://monitor.sz.lan/telemetry/env/?data_type=temperature&reading={:1f}&sampling_point={}'.format(temperatures[i], locations[i]))
+#                logging.info('response_text: {}, status_code: {}, response_timestamp: {}, response_time: {}ms'.format(response_text, status_code, response_timestamp, response_time))
+#            except:
+#                logging.error('{}'.format(sys.exc_info()))
+
+        cursor.close()
+        db.close()
+
+        pwm.ChangeDutyCycle(load_tuned)
+
+    pwm.ChangeDutyCycle(0)
+    GPIO.cleanup()
+
+def cleanup(*args):
+
+    global stop_signal
+    stop_signal = True
+  #  GPIO.cleanup()     This line is believed to be unnecessary since it has been down in the loop thread
+    logging.info('Stop signal received, exiting')
+    sys.exit(0)
+
+
+def send_notification_email(subject: str, mainbody: str, delay: int):
+
+    global stop_signal
+
+    for i in range(0, delay):
+        time.sleep(1)
+        if stop_signal == True:
+            return
+
+    sender = 'rpi-rack@sz.mamsds.net'
+    password = 'A1swOqXTCguC'
+    receivers = ['admin@mamsds.net']
+
+    message = ('From: Fans Controller from Rpi-Rack <rpi-rack@sz.mamsds.net>\n'
+                'To: Mamsds Admin Account <admin@mamsds.net>\n'
+                'Content-Type: text/html; charset="UTF-8"\n'
+                'Subject: {}\n'
+                '<meta http-equiv="Content-Type"  content="text/html charset=UTF-8" /><html>{}</html>'.format(subject, mainbody.replace('\n', '<br>')))
+
+    try:
+        smtpObj = smtplib.SMTP(host='server172.web-hosting.com', port=587)
+        smtpObj.starttls()
+        smtpObj.login(sender, password)
+        smtpObj.sendmail(sender, receivers, message.encode('utf-8'))
+        smtpObj.quit()
+        logging.info("Email [{}] sent successfully".format(subject))
+    except:
+        logging.error("Error sending email: {}".format(sys.exc_info()))
+
+def main():
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--debug', dest='debug', action='store_true')
+    args = vars(ap.parse_args())
+    debug_mode = args['debug']
+
+    logging.basicConfig(
+        filename='/var/log/mamsds/fans-controller.log',
+        level=logging.DEBUG if debug_mode else logging.INFO,
+        format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+    )
+    logging.info('fans-controller started')
+
+    signal.signal(signal.SIGINT, cleanup)
+    signal.signal(signal.SIGTERM, cleanup)
+
+    start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    email_sender = threading.Thread(target=send_notification_email, args=('fans-controller started', 'The fans-controller has been started at {}'.format(start_time), 300))
+    email_sender.start()
+    fans_controller = threading.Thread(target=fans_controller_loop, args=())
+    fans_controller.start()
+
+    waitress.serve(app, host="127.0.0.1", port=88)
+    logging.info('fans-controller finished')
+
+if __name__ == '__main__':
+
+    main()

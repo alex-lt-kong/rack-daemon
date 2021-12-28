@@ -1,0 +1,168 @@
+<meta name="viewport" content="width=device-width">
+<link rel="shortcut icon" href="//rpi-rack.sz.lan/static/favicon.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.18.1/moment.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.8.0/Chart.bundle.js"></script>
+
+<html>
+<head><title>Fans Controller</title></head>
+
+<body>
+
+<div class="chart-container" style="position: relative; height:85vh; width:99%">
+    <canvas id="myChart"></canvas>
+</div>
+<div style="text-align:center;" >
+	<form action="./" method="post">
+    <label>Fans Mode:</label>
+    <input type="text" name="fans_mode" value="{{fans_mode}}" style="width: 75px;" maxlength=3 />
+    <input type="submit" value="Apply"><br>
+    <label>(-1: Auto Mode; 0-100: Manual Mode with a load percentage point)</label>
+	</form>
+</div>
+<script>
+
+// ========== code used to create a vertical line while hovering on the chart. ==========
+Chart.defaults.LineWithLine = Chart.defaults.line;
+Chart.controllers.LineWithLine = Chart.controllers.line.extend({
+   draw: function(ease) {
+      Chart.controllers.line.prototype.draw.call(this, ease);
+
+      if (this.chart.tooltip._active && this.chart.tooltip._active.length) {
+         var activePoint = this.chart.tooltip._active[0],
+             ctx = this.chart.ctx,
+             x = activePoint.tooltipPosition().x,
+             topY = this.chart.legend.bottom,
+             bottomY = this.chart.chartArea.bottom;
+
+         // draw line
+         ctx.save();
+         ctx.beginPath();
+         ctx.moveTo(x, topY);
+         ctx.lineTo(x, bottomY);
+         ctx.lineWidth = 0.5;
+         ctx.strokeStyle = '#A6A6A6';
+         ctx.stroke();
+         ctx.restore();
+      }
+   }
+});
+// Note: "type" property of myChart needs to be set to "LineWithLine" to make it work
+// ========== code used to create a vertical line while hovering on the chart. ==========
+
+Chart.defaults.global.defaultFontFamily = 'Arial';
+Chart.defaults.global.defaultFontSize = 16;
+Chart.defaults.global.defaultFontColor = '#000';
+
+var ctx = document.getElementById('myChart').getContext('2d');
+var myChart = new Chart(ctx, {
+    type: 'LineWithLine',   // Originally, it is 'line' here
+    data: {
+        labels: [{{ time_string | safe }}],
+        datasets: [
+       	{%for i in range(0, sensor_string|length)%} 
+        {
+            label: 'sensor{{i}}({{locations[i]}})',
+            yAxisID: 'A',            
+            data: [{{sensor_string[i]}}],            
+     
+            
+            fill: false,
+            borderColor: getRandomColor({{i}}),
+            borderWidth: 2,
+            pointRadius: 1
+        },
+      	{%endfor%}
+        {
+            label: 'load',
+            yAxisID: 'B',            
+            data: [{{load_string}}],            
+     
+            
+            fill: false,
+            borderColor: getRandomColor({{sensor_string|length}}),
+            borderWidth: 2,
+            pointRadius: 1
+        }]
+
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        spanGaps: true,
+        title: {
+          display: true,
+          text: 'Temperature and Fans Load'
+        },
+        elements: {
+          line: {
+            tension: 0 // to disable the "bezierCurve"
+            }
+        },
+        scales: {xAxes: [{
+                type: "time",
+                time: { 
+                  parser: 'YYYY-MM-DD HH:mm:ss',
+                  displayFormats: {
+                            'minute': 'HH:mm',    // These lines tell chart.js the string format to be used if it thinks the scale of x-Axis is minute/hour/day
+                            'hour': 'YYYY-MM-DD HH:mm',
+                            'day': 'YYYY-MM-DD',
+                        },
+                  tooltipFormat: 'YYYY-MM-DD HH:mm:ss'
+                },
+                display: true,
+                scaleLabel: {
+                    display: true,
+                    labelString: ''
+                }
+     
+            }],
+            yAxes: [{
+             	id: 'A',
+              position: 'left',
+              ticks: {
+                beginAtZero: false,
+                callback: function(value, index, values) {
+                  return value + '°C';
+                }
+              }
+            }, {
+  		        id: 'B',
+  		        type: 'linear',
+  		        position: 'right',
+  		        ticks: {
+  		          beginAtZero: false,
+  		          callback: function(value, index, values) {
+                    return value + '%';
+                }
+  		        }
+        		}]
+        },
+        tooltips: {
+            callbacks: {
+              label: function(tooltipItems, data) { 
+                if (tooltipItems.datasetIndex == 4)
+                  return tooltipItems.yLabel + '%';
+                else
+                  return tooltipItems.yLabel + '°C';
+              }
+            },
+            mode: 'index',
+            intersect: false
+        }
+    }
+});
+
+function getRandomColor(i) {
+    var colors = ["#f44336", "#2196f3", "#4caf50", "#fdd835", "#9c27b0"];
+    if (i < 5)
+      return colors[i];
+    var letters = '0123456789ABCDEF'.split('');
+    var color = '#';
+    for (var i = 0; i < 6; i++ ) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+}
+</script>
+</body>

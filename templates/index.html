@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<meta name="viewport" content="width=device-width">
+<link rel="shortcut icon" href="//rpi-rack.sz.lan/static/favicon.png">
+<link rel="stylesheet" href="//monitor.sz.lan/resources/w3.css">
+<link rel="stylesheet" href="//monitor.sz.lan/resources/w3-colors-2017.css">
+<link rel="stylesheet" href="//monitor.sz.lan/resources/w3-colors-highway.css">
+
+<html>
+<head><title>Rack Manager [{{username}}]</title></head>
+
+<body>
+  <div class="w3-container w3-padding-16" style="max-width: 45em; display: block; margin-left: auto; margin-right: auto;">
+    <div class="w3-card-4">
+      <header class="w3-container w3-highway-blue">
+        <h3>
+          Rack Manager<span class="w3-right" style="margin-bottom:1rem;font-size:0.65em;">[{{username}}],&nbsp;<a href="#" onclick="logout();">Logout</a></span>
+        </h3>
+      </header>
+      <div class="w3-container"><h4>Live Image</h4></div>
+      <img id="live-image" class="w3-border" alt="live-image" style="width:100%" src="./live_image/"  alt="live_image" >
+      <div class="w3-container"><h4>Fans Mode</h4></div>
+      <div style="text-align:center; margin-top:0.5em; margin-bottom:0.5em;" >
+      	<form id="form-fans-mode">
+          <input type="text" name="fans_mode" value="{{fans_mode}}" style="width: 75px;" maxlength=3 />
+          <input class="w3-button w3-highway-blue" style="max-width:5em;" onclick="changeFansMode()" value="Apply" >
+      	</form>
+      </div>
+      <div class="w3-container"><h4>Readings</h4></div>
+      <table class="w3-table w3-striped w3-bordered">
+        <tr>
+          <th class="w3-right-align">Front</th>
+          <th class="w3-right-align">Back</th>
+          <th class="w3-right-align">Ambient I</th>
+          <th class="w3-right-align">Ambient II</th>
+          <th class="w3-right-align">Fans Load</th>
+        </tr>
+    		<tr> 
+    			<td class="w3-right-align" style="white-space: nowrap;">{{temperatures[0]}} °C</td> 
+    			<td class="w3-right-align" style="white-space: nowrap;">{{temperatures[1]}} °C</td>
+    			<td class="w3-right-align" style="white-space: nowrap;">{{temperatures[2]}} °C</td>
+    			<td class="w3-right-align" style="white-space: nowrap;">{{temperatures[3]}} °C</td>
+    			<td class="w3-right-align" style="white-space: nowrap;">{{fans_load_tuned}}%</td>
+    		</tr>
+      </table>
+      <footer class="w3-highway-blue">
+      <div class="w3-container">
+        Definition:<br>-1: Adjust the load of both fans automatically<br>0-100: Manually specify a load in percentage
+      </div>
+      </footer>
+    </div>
+  </div>
+  <div id="msg-box" class="w3-modal">
+    <div class="w3-modal-content w3-animate-top">
+      <header class="w3-container w3-highway-blue"> 
+        <span onclick="document.getElementById('msg-box').style.display='none'" 
+        class="w3-button w3-display-topright">&times;</span>
+        <h2>Message</h2>
+      </header>
+      <div class="w3-container">
+        <p id="msg-body"></p>
+        <p><button id="okay-button" onclick="document.getElementById('msg-box').style.display='none';location.reload();" class="w3-right w3-button w3-highway-blue">OK</button></p>
+      </div>
+    </div>
+  </div>
+<script>
+function logout() {
+  window.location.replace('../logout/');
+}
+
+function changeFansMode() {
+
+  const XHR = new XMLHttpRequest();
+  XHR.timeout = 10000;
+  const FD = new FormData(document.getElementById('form-fans-mode'));
+
+  document.getElementById('msg-box').style.display = 'block';  
+  XHR.onreadystatechange = function(e) {
+    
+    if (XHR.readyState === 4) {
+      document.getElementById('msg-box').style.display='block';
+      if (XHR.status === 200) {
+        document.getElementById('msg-body').innerHTML = '<div>' + XHR.responseText.toString() + '<br>The new setting should take effect within a few seconds.</div>';
+      } else {
+        document.getElementById('msg-body').innerHTML = '<b>ERROR</b>, Unable to change fans_mode, reason:<br>'
+        document.getElementById('msg-body').innerHTML += XHR.responseText;
+      }
+      document.getElementById('okay-button').style.display = 'block';
+    }
+  }
+  XHR.ontimeout = function () {
+    document.getElementById('msg-body').innerHTML = '<b>ERROR:</b> Connection Timeout';
+    document.getElementById('okay-button').style.display = 'block';
+  }
+    
+  XHR.open('POST', './control/');
+  XHR.send(FD);
+  };
+  
+setInterval(function() {
+    var img = document.getElementById('live-image');
+    img.src = "./live_image/?rand=" + Math.floor(Math.random() * (99999 - 10000 + 1)) + 10000;    
+}, 3000);
+  
+</script>
+</body>
+</html>
