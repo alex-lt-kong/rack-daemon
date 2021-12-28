@@ -16,8 +16,11 @@ A tool developed in Python to:
 # Hardware
 
 ## Wiring Diagram
-
+### Door sensor
 <img src="./images/wiring-diagram.png" alt="Wiring Diagram" />
+
+### Fans controller
+Undocumented
 
 ## Raspberry Pi Rack Mount Design
 
@@ -27,8 +30,11 @@ A tool developed in Python to:
 ### IRF520 MOS Driver Module
 <img src="./images/mos-driver-module.jpeg" alt="IRF520 MOS Driver Module" />
 
-### Resistors
+### Sunon Cooling Fan x2
+<img src="./images/sunon-cooling-fan.jpg" alt="Sunon Cooling Fan" />
 
+### Door sensor
+<img src="./images/door-sensor.jpg" alt="Door sensor" />
 
 ## Installation
 
