@@ -11,6 +11,6 @@ A temperature monitoring and fans control tool for server rack cabinet
 # Hardware Installation
 
 
-    | ![](./images/desktop.png) | ![](./images/smartphone.png) | 
-    |:--|--:| 
-    | *Desktop* |*smartphone* |
+| ![](./images/desktop.png) | ![](./images/smartphone.png) | 
+|    :----:   |  :----: |
+| *Desktop* |*smartphone* |
