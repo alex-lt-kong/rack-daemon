@@ -300,6 +300,7 @@ def control():
         if fans_mode < 0:
             fans_mode = -1
     except Exception as e:
+        print('???')
         return Response(f'invalid fans_mode [{fans_mode}], {e}', 400)
 
     fm = {'fans_mode': fans_mode}
@@ -327,8 +328,7 @@ def index():
     try:
         json_file = open(fans_mode_path)
         json_str = json_file.read()
-        settings = json.loads(json_str)
-        fans_mode = int(settings['fans_mode'])
+        fans_mode = int(json.loads(json_str)['fans_mode'])
     except Exception as e:
         fans_mode = None
         logging.error(e)
@@ -398,7 +398,8 @@ def fans_controller_loop():
         delta = round(high_temperature - low_temperature, 1)
         load_raw = int(delta * 100 / 10)
         load_tuned = load_raw
-
+        # load_tuned is calculated anyway, suppose fans_mode is -1 it will
+        # be overridden
         if load_tuned > 100:
             load_tuned = 100
         if load_tuned < 25 and load_tuned >= 12.5:
@@ -409,7 +410,7 @@ def fans_controller_loop():
         try:
             json_file = open(fans_mode_path)
             json_str = json_file.read()
-            fans_mode = int(json.loads(json_str))
+            fans_mode = int(json.loads(json_str)['fans_mode'])
         except Exception as e:
             logging.error(f'Failed to load new fans_mode: {e}')
             fans_mode = -1
@@ -457,7 +458,7 @@ def fans_controller_loop():
                          f'status_code: {r.status_code}, '
                          f'response_time: {response_time}ms')
         except Exception as e:
-                logging.error(f'{e}')
+            logging.error(f'{e}')
 
         pwm.ChangeDutyCycle(load_tuned)
         global fans_load_tuned
