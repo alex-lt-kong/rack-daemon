@@ -5,8 +5,9 @@ A tool developed in Python to:
 1. Read temperature values from four DS18B20 temperature sensors;
 1. Control two Sunon cooling fans based on ambient and cabinet temperature readings with a IRF520 MOS Driver Module;
 1. Detect cabinet door opening with a reed switch (a.k.a. door sensor);
+1. Read from an USB IPCam and show real-time image;
 
-# Screenshots
+# Software
 
 <p float="left">
     <img src="./images/desktop.png" height="600" alt="Desktop GUI" />    
@@ -28,13 +29,13 @@ Undocumented
 
 ## Components
 ### IRF520 MOS Driver Module
-<img src="./images/mos-driver-module.jpeg" alt="IRF520 MOS Driver Module" />
+<img src="./images/mos-driver-module.jpeg" alt="IRF520 MOS Driver Module" width="300" />
 
 ### Sunon Cooling Fan x2
-<img src="./images/sunon-cooling-fan.jpg" alt="Sunon Cooling Fan" />
+<img src="./images/sunon-cooling-fan.jpg" alt="Sunon Cooling Fan" width="300" />
 
 ### Door sensor
-<img src="./images/door-sensor.jpg" alt="Door sensor" />
+<img src="./images/door-sensor.jpg" alt="Door sensor" width="300" />
 
 ## Installation
 
