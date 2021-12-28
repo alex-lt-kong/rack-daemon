@@ -3,8 +3,12 @@ A temperature monitoring and fans control tool for server rack cabinet
 
 # Screenshots
 
-
-<table cellspacing="0" cellpadding="0">
+<style>
+td, th {
+   border: none!important;
+}
+</style>
+<table>
   <tr>
     <td ><img src="./images/desktop.png" /></td>
     <td class="second"><img src="./images/smartphone.png" /></td>
