@@ -3,6 +3,8 @@ A temperature monitoring and fans control tool for server rack cabinet
 
 # Screenshots
 
-Desktop            |  Smartphone
-:-------------------------:|:-------------------------:
-![](./images/desktop.png)  |  ![](./images/smartphone.png)
+
+<p float="left">
+  <img src="./images/desktop.png" width="300" />
+  <img src="./images/smartphone.png" width="100" /> 
+</p>
