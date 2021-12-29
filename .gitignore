@@ -1,6 +1,7 @@
 settings.json
 users.json
 fans.mode
+door.sqlite
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
