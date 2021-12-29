@@ -18,6 +18,7 @@ import requests
 import RPi.GPIO as GPIO
 import signal
 import smtplib
+import sqlite3
 import sys
 import threading
 import time
@@ -38,6 +39,7 @@ INVALID_VALUE = -65536
 app_address = ''
 # app_dir: the app's real address on the filesystem
 app_dir = os.path.dirname(os.path.realpath(__file__))
+door_open_db = os.path.join(app_dir, 'door.sqlite')
 # 28.0301a279faf2 is the shorter one in the rack
 # 28-030997792b61 is the shortest one in the rack
 # 28-01144ebe52aa and 28-01144ef1faaa are the 2-meter long ones
@@ -53,6 +55,7 @@ fans_mode_changed = True
 fans_load_tuned = None
 settings = None
 settings_path = os.path.join(app_dir, 'settings.json')
+th_email = None
 temperatures = [0, 0, 0, 0]
 # Fill temperatures with 0 can avoid None errors 
 # if real readings from sensors are not fetched.
@@ -319,6 +322,40 @@ def control():
     return Response(f'Success: fans_mode changed to {fans_mode}.', 200)
 
 
+def get_door_events_table():
+
+    table_html = """
+    <table class="w3-table w3-striped w3-bordered">
+      <tr>
+        <th>Event ID</th><th>Event Time</th><th>Door Status</th>
+      </tr>
+    """
+    rows = []
+    try:
+        conn = sqlite3.connect(door_open_db)
+        cur = conn.cursor()
+
+        cur.execute('''SELECT * FROM history ORDER BY event_time DESC LIMIT 5;''')
+        rows = cur.fetchall()
+    except Exception as e:
+        logging.error(e)
+        table_html += f'Internal Error'
+    else:
+        for row in rows:
+            table_html += '<tr>'
+            table_html += f'<td class="w3-border">{row[0]}</td>'
+            table_html += f'<td class="w3-border">{row[1]}</td>'
+            if row[2] == 0:
+                door_status = '<span style="color:green">Closed</span>'
+            else:
+                door_status = '<span style="color:red">Opened</span>'
+            table_html += f'<td class="w3-border" style="font-weight:bold">{door_status}</td>'
+            table_html += '</tr>'
+
+    table_html += '</table>'
+
+    return table_html
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
 
@@ -341,6 +378,7 @@ def index():
         "app_address": app_address,
         "fans_mode": fans_mode,
         "fans_load_tuned": fans_load_tuned,
+        "door_events_table": get_door_events_table(),
         "temperatures": [int(x) for x in temperatures]
     }
 
@@ -348,6 +386,65 @@ def index():
     return render_template('index.html', **kwargs)
                            # int() allows temperatures to fit into small screens
 
+def door_sensor_loop():
+    
+    #GPIO.setmode(GPIO.BCM)
+    # Set in fans_controller_loop()
+
+    GPIO_pin_positive = 19
+    GPIO.setup(GPIO_pin_positive, GPIO.OUT)
+    GPIO.output(GPIO_pin_positive, GPIO.HIGH)
+
+    GPIO_pin_negative = 16
+    GPIO.setup(GPIO_pin_negative, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    # When a GPIO pin is in input mode and not connected to 3.3 volts or ground, 
+    # the pin is said to be floating, meaning that it has no fixed voltage level.
+    # the pin will randomly float between HIGH and LOW.
+
+    conn = sqlite3.connect(door_open_db)
+    # No try catch here: if there is an error, the program should not continue
+    cur = conn.cursor()
+
+    cur.execute('''
+        CREATE TABLE IF NOT EXISTS history
+        (
+            [event_id] INTEGER PRIMARY KEY AUTOINCREMENT,
+            [event_time] TEXT,
+            [status] INTEGER
+        )
+    ''')
+    conn.commit()
+
+
+    last_status = 1    
+
+    global stop_signal
+    while stop_signal is False:
+        
+        current_status = GPIO.input(GPIO_pin_negative)
+        if current_status != last_status:
+
+            if current_status == 1:
+                cur.execute('''
+                    INSERT INTO history (event_time, status)
+                    VALUES(?, 0);
+                ''',  [dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+                print('door is closed')
+            else:
+                cur.execute('''
+                    INSERT INTO history (event_time, status)
+                    VALUES(?, 1);
+                ''',  [dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+                print('door is opened')
+            conn.commit()
+
+            last_status = current_status              
+
+        time.sleep(1)
+
+    GPIO.cleanup()
+    # cleanup() multiple times leads to an warning but is okay
+    conn.close()
 
 def fans_controller_loop():
 
@@ -467,6 +564,7 @@ def fans_controller_loop():
         fans_load_tuned = load_tuned
     pwm.ChangeDutyCycle(0)
     GPIO.cleanup()
+    # cleanup() multiple times leads to an warning but is okay
 
 
 def cleanup(*args):
@@ -476,6 +574,7 @@ def cleanup(*args):
     # GPIO.cleanup()
     # This line is believed to be unnecessary since it has executed
     # in the loop thread
+    th_email.stop_thread = True
     logging.info('Stop signal received, exiting')
     sys.exit(0)
 
@@ -491,11 +590,8 @@ def main():
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
-    start_time = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    start_time = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")    
 
-    fans_controller = threading.Thread(target=fans_controller_loop, args=())
-    fans_controller.start()
-    
     global settings
     global app_address
     with open(settings_path, 'r') as json_file:
@@ -517,6 +613,8 @@ def main():
                     'emailer',
                     settings['email']['path']
                 ).load_module()
+    
+    global th_email
     th_email = threading.Thread(target=emailer.send_service_start_notification,
                                 kwargs={'settings_path': os.path.join(app_dir, 'settings.json'),
                                         'service_name': "Rack Monitor",
@@ -524,18 +622,19 @@ def main():
                                         'delay': 0 if debug_mode else 300})
     th_email.start()
 
-    th_stream_video = threading.Thread(
-    target=streamer.start_streaming(
+    threading.Thread(
+        target=streamer.start_streaming(
         ipcam_url=(settings['app']['device_path']),
         ipcam_name='Rack',
         rotate=settings['app']['video_rotate'],
         video_width=settings['app']['video_width'],
-        video_height=settings['app']['video_height']))
+        video_height=settings['app']['video_height'])).start()
     # 640 x 480 is the default resolution of the usbcam
     # although according to v4l2-ctl --list-formats-ext
     # it can support a lot others
-    th_stream_video.start()
-    
+    threading.Thread(target=fans_controller_loop, args=()).start()
+    threading.Thread(target=door_sensor_loop, args=()).start()
+
     waitress.serve(app, host="127.0.0.1", port=88)
     logging.info('Rack Monitor finished')
 

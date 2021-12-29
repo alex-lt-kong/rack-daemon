@@ -1,5 +1,6 @@
 settings.json
 users.json
+fans.mode
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
