@@ -448,7 +448,7 @@ def door_sensor_loop():
                         'to_name': settings['email']['to_name'],
                         'to_address': settings['email']['to_address'],
                         'subject': 'Server rack door opened',
-                        'mainbody': f'Server rack door opened on {curr_time}'
+                        'mainbody': f'Server rack door opened at {curr_time}'
                     }).start()
             conn.commit()
 
