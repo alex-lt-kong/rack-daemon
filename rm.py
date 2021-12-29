@@ -40,6 +40,7 @@ app_address = ''
 # app_dir: the app's real address on the filesystem
 app_dir = os.path.dirname(os.path.realpath(__file__))
 door_open_db = os.path.join(app_dir, 'door.sqlite')
+emailer = None
 # 28.0301a279faf2 is the shorter one in the rack
 # 28-030997792b61 is the shortest one in the rack
 # 28-01144ebe52aa and 28-01144ef1faaa are the 2-meter long ones
@@ -423,19 +424,30 @@ def door_sensor_loop():
         
         current_status = GPIO.input(GPIO_pin_negative)
         if current_status != last_status:
-
-            if current_status == 1:
+            curr_time = dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            if current_status == 1:                
+                logging.info('Door is closed')
                 cur.execute('''
                     INSERT INTO history (event_time, status)
                     VALUES(?, 0);
-                ''',  [dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
-                print('door is closed')
+                ''',  [curr_time])                
             else:
+                logging.info('Door is opened')
                 cur.execute('''
                     INSERT INTO history (event_time, status)
                     VALUES(?, 1);
-                ''',  [dt.datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
-                print('door is opened')
+                ''',  [curr_time])
+                threading.Thread(
+                    target=emailer.send,
+                    kwargs={
+                        'from_name': settings['email']['from_name'],
+                        'from_address': settings['email']['from_address'],
+                        'from_password': settings['email']['from_password'],
+                        'to_name': settings['email']['to_name'],
+                        'to_address': settings['email']['to_address'],
+                        'subject': 'Server rack door opened',
+                        'mainbody': f'Server rack door opened on {curr_time}'
+                    }).start()
             conn.commit()
 
             last_status = current_status              
@@ -493,17 +505,25 @@ def fans_controller_loop():
                 temperatures[i] = INVALID_VALUE
 
         high_temperature = abs(temperatures[1] - temperatures[0]) * 0.25 + (temperatures[1] + temperatures[0]) / 2
+        # abs(temperatures[1] - temperatures[0]) * 0.25 means
+        # fans load should be even higher if the readings from two sensors
+        # are more different
         low_temperature = (temperatures[2] + temperatures[3]) / 2
         delta = round(high_temperature - low_temperature, 1)
-        load_raw = int(delta * 100 / 10)
+        # f(delta) = 2 * delta - 10 so that we map [5, 10]
+        # to [0, 10]. That is, if delta is less than 5, load_raw will be 0;
+        # if delta is 10, load_raw will be 100
+        load_raw = int((2 * delta - 10) * 100 / 10)
+        # if delta <= 5, fans will be turned off.
         load_tuned = load_raw
-        # load_tuned is calculated anyway, suppose fans_mode is -1 it will
+        # load_tuned is always calculated, suppose fans_mode is -1 it will
         # be overridden
         if load_tuned > 100:
             load_tuned = 100
         if load_tuned < 25 and load_tuned >= 12.5:
             load_tuned = 25
         if load_tuned < 12.5:
+            # fans won't move if voltage is too low anyway
             load_tuned = 0
 
         try:
@@ -593,13 +613,16 @@ def main():
     start_time = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")    
 
     global settings
-    global app_address
+    global app_address, emailer
     with open(settings_path, 'r') as json_file:
         json_str = json_file.read()
         settings = json.loads(json_str)
     app.secret_key = settings['flask']['secret_key']
     app_address = settings['app']['app_address']
-
+    emailer = importlib.machinery.SourceFileLoader(
+                    'emailer',
+                    settings['email']['path']
+                ).load_module()
     logging.basicConfig(
         filename=settings['app']['log_path'],
         level=logging.DEBUG if debug_mode else logging.INFO,
@@ -609,10 +632,7 @@ def main():
     logging.info('Rack Monitor started') 
 
 
-    emailer = importlib.machinery.SourceFileLoader(
-                    'emailer',
-                    settings['email']['path']
-                ).load_module()
+
     
     global th_email
     th_email = threading.Thread(target=emailer.send_service_start_notification,

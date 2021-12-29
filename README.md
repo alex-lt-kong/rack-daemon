@@ -10,8 +10,8 @@ A tool developed in Python to:
 # Software
 
 <p float="left">
-    <img src="./images/desktop.png" height="600" alt="Desktop GUI" />    
-    <img src="./images/smartphone.png" height="600" alt="Mobile GUI" />
+    <img src="./images/desktop.png" height="650" alt="Desktop GUI" />    
+    <img src="./images/smartphone.png" height="650" alt="Mobile GUI" />
 </p>
 
 # Hardware
@@ -38,12 +38,18 @@ Undocumented
 <img src="./images/door-sensor.jpg" alt="Door sensor" width="300" />
 
 ## Installation
+### Raspberry Pi and its rackmount
+<img src="./images/raspberry-pi.jpg" height="450" alt="Raspberry Pi" />    
 
-<p float="left">
-    <img src="./images/raspberry-pi.jpg" height="450" alt="Raspberry Pi" />    
-    <img src="./images/ipcam.jpg" height="450" alt="IPCam" />
-    <img src="./images/cooling-fans.jpg" height="450" alt="Cooling Fans" />
-</p>
+### IPCam
+<img src="./images/ipcam.jpg" height="450" alt="IPCam" />
+
+### Cooling Fans
+<img src="./images/cooling-fans.jpg" height="450" alt="Cooling Fans" />
+
+### Temperature sensor
+
+### Door sensor
 
 
 
