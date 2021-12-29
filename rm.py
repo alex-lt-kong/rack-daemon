@@ -440,6 +440,8 @@ def door_sensor_loop():
                 threading.Thread(
                     target=emailer.send,
                     kwargs={
+                        'from_host': settings['email']['from_host'],
+                        'from_port': settings['email']['from_port'],
                         'from_name': settings['email']['from_name'],
                         'from_address': settings['email']['from_address'],
                         'from_password': settings['email']['from_password'],
