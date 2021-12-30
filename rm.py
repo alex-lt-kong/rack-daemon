@@ -14,6 +14,7 @@ import json
 import logging
 import numpy as np
 import os
+import Pi7SegPy
 import requests
 import RPi.GPIO as GPIO
 import signal
@@ -300,14 +301,14 @@ def control():
         return Response('Not logged in', 400)
 
     try:
-        fans_mode = int(request.form.get("fans_mode", None))
+        fans_mode = int(request.form.get("fans_mode", 0))
         if fans_mode > 100:
             fans_mode = 100
         if fans_mode < 0:
             fans_mode = -1
     except Exception as e:
-        print('???')
-        return Response(f'invalid fans_mode [{fans_mode}], {e}', 400)
+        logging.error(e)
+        return Response(f'invalid fans_mode', 400)
 
     fm = {'fans_mode': fans_mode}
     try:
@@ -386,6 +387,28 @@ def index():
 
     return render_template('index.html', **kwargs)
                            # int() allows temperatures to fit into small screens
+
+
+def led_display_loop():
+    Pi7SegPy.init(
+        data_pin=17,  # a.k.a. DI0
+        clock_pin=11, # a.k.a. SCLK
+        latch_pin=18, # a.k.a. RCLK
+        registers=2,
+        no_of_displays=4,
+        common_cathode_type=False)
+
+    while stop_signal is False:
+        if fans_load_tuned is None:
+            continue
+        Pi7SegPy.show(
+            values=[
+                int(fans_load_tuned / 100),
+                int(int(fans_load_tuned) % 100 / 10),
+                int(fans_load_tuned) % 10,
+                0],
+            dots=[2])
+        
 
 def door_sensor_loop():
     
@@ -517,16 +540,17 @@ def fans_controller_loop():
         # if delta is 10, load_raw will be 100
         load_raw = int((2 * delta - 10) * 100 / 10)
         # if delta <= 5, fans will be turned off.
-        load_tuned = load_raw
+        global fans_load_tuned
+        fans_load_tuned = load_raw
         # load_tuned is always calculated, suppose fans_mode is -1 it will
         # be overridden
-        if load_tuned > 100:
-            load_tuned = 100
-        if load_tuned < 25 and load_tuned >= 12.5:
-            load_tuned = 25
-        if load_tuned < 12.5:
+        if fans_load_tuned > 100:
+            fans_load_tuned = 100
+        if fans_load_tuned < 25 and fans_load_tuned >= 12.5:
+            fans_load_tuned = 25
+        if fans_load_tuned < 12.5:
             # fans won't move if voltage is too low anyway
-            load_tuned = 0
+            fans_load_tuned = 0
 
         try:
             json_file = open(fans_mode_path)
@@ -536,13 +560,13 @@ def fans_controller_loop():
             logging.error(f'Failed to load new fans_mode: {e}')
             fans_mode = -1
         if fans_mode != -1:
-            load_tuned = fans_mode
+            fans_load_tuned = fans_mode
         logging.debug(f'delta: {delta}, load_raw: {load_raw}, '
-                      f'fans_mode: {fans_mode}, load_tuned: {load_tuned}')
+                      f'fans_mode: {fans_mode}, fans_load_tuned: {fans_load_tuned}')
 
         for i in range(len(temperatures)):
             try:
-                url = ('{}?device_name=rpi-rack&device_token={}&'
+                url = ('{}?device_name=rpi-load_tuned&device_token={}&'
                        'data_type=temperature&reading={:1f}&sampling_point={}'
                        .format(
                             settings['app']['telemetry']['url'],
@@ -568,7 +592,7 @@ def fans_controller_loop():
                    .format(
                         settings['app']['telemetry']['url'],
                         settings['app']['telemetry']['device_token'],
-                        load_tuned, 
+                        fans_load_tuned, 
                         settings['app']['telemetry']['fans_sampling_point']))
             start = dt.datetime.now()
             r = requests.get(url=url)
@@ -581,9 +605,7 @@ def fans_controller_loop():
         except Exception as e:
             logging.error(f'{e}')
 
-        pwm.ChangeDutyCycle(load_tuned)
-        global fans_load_tuned
-        fans_load_tuned = load_tuned
+        pwm.ChangeDutyCycle(fans_load_tuned)
     pwm.ChangeDutyCycle(0)
     GPIO.cleanup()
     # cleanup() multiple times leads to an warning but is okay
@@ -656,6 +678,7 @@ def main():
     # it can support a lot others
     threading.Thread(target=fans_controller_loop, args=()).start()
     threading.Thread(target=door_sensor_loop, args=()).start()
+    threading.Thread(target=led_display_loop, args=()).start()
 
     waitress.serve(app, host="127.0.0.1", port=88)
     logging.info('Rack Monitor finished')
