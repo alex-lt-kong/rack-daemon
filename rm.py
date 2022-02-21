@@ -528,7 +528,9 @@ def fans_controller_loop():
             except Exception as e:
                 # in case temperature sensors are disconnected
                 temperatures[i] = INVALID_VALUE
-
+        if (INVALID_VALUE in temperatures):
+            continue
+            
         high_temperature = abs(temperatures[1] - temperatures[0]) * 0.25 + (temperatures[1] + temperatures[0]) / 2
         # abs(temperatures[1] - temperatures[0]) * 0.25 means
         # fans load should be even higher if the readings from two sensors
