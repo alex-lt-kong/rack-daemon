@@ -1,6 +1,6 @@
 #!/usr/bin/python3
-# -*- coding: utf-8 -*-
 
+from emailer import emailer
 from flask import Flask, redirect, render_template, Response, request, session
 
 import argparse
@@ -8,7 +8,6 @@ import cv2
 import datetime as dt
 import flask
 import hashlib
-import importlib
 import io
 import json
 import logging
@@ -28,7 +27,7 @@ import waitress
 app = Flask(__name__)
 app.secret_key = b''
 app.config.update(
-    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SECURE=False,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE='Lax',
 )
@@ -41,7 +40,6 @@ app_address = ''
 # app_dir: the app's real address on the filesystem
 app_dir = os.path.dirname(os.path.realpath(__file__))
 door_open_db = os.path.join(app_dir, 'door.sqlite')
-emailer = None
 # 28.0301a279faf2 is the shorter one in the rack
 # 28-030997792b61 is the shortest one in the rack
 # 28-01144ebe52aa and 28-01144ef1faaa are the 2-meter long ones
@@ -460,19 +458,19 @@ def door_sensor_loop():
                     INSERT INTO history (event_time, status)
                     VALUES(?, 1);
                 ''',  [curr_time])
-                threading.Thread(
-                    target=emailer.send,
-                    kwargs={
-                        'from_host': settings['email']['from_host'],
-                        'from_port': settings['email']['from_port'],
-                        'from_name': settings['email']['from_name'],
-                        'from_address': settings['email']['from_address'],
-                        'from_password': settings['email']['from_password'],
-                        'to_name': settings['email']['to_name'],
-                        'to_address': settings['email']['to_address'],
-                        'subject': 'Server rack door opened',
-                        'mainbody': f'Server rack door opened at {curr_time}'
-                    }).start()
+                #threading.Thread(
+                #    target=emailer.send,
+                #    kwargs={
+                #        'from_host': settings['email']['from_host'],
+                #        'from_port': settings['email']['from_port'],
+                #        'from_name': settings['email']['from_name'],
+                #        'from_address': settings['email']['from_address'],
+                #        'from_password': settings['email']['from_password'],
+                #        'to_name': settings['email']['to_name'],
+                #        'to_address': settings['email']['to_address'],
+                #        'subject': 'Server rack door opened',
+                #        'mainbody': f'Server rack door opened at {curr_time}'
+                #    }).start()
             conn.commit()
 
             last_status = current_status              
@@ -528,8 +526,9 @@ def fans_controller_loop():
             except Exception as e:
                 # in case temperature sensors are disconnected
                 temperatures[i] = INVALID_VALUE
+
         if (INVALID_VALUE in temperatures):
-            continue
+            fans_mode = 50
             
         high_temperature = abs(temperatures[1] - temperatures[0]) * 0.25 + (temperatures[1] + temperatures[0]) / 2
         # abs(temperatures[1] - temperatures[0]) * 0.25 means
@@ -620,7 +619,6 @@ def cleanup(*args):
     # GPIO.cleanup()
     # This line is believed to be unnecessary since it has executed
     # in the loop thread
-    th_email.stop_thread = True
     logging.info('Stop signal received, exiting')
     sys.exit(0)
 
@@ -645,10 +643,6 @@ def main():
         settings = json.loads(json_str)
     app.secret_key = settings['flask']['secret_key']
     app_address = settings['app']['app_address']
-    emailer = importlib.machinery.SourceFileLoader(
-                    'emailer',
-                    settings['email']['path']
-                ).load_module()
     logging.basicConfig(
         filename=settings['app']['log_path'],
         level=logging.DEBUG if debug_mode else logging.INFO,
@@ -658,13 +652,10 @@ def main():
     logging.info('Rack Monitor started') 
 
 
-
-    
-    global th_email
     th_email = threading.Thread(target=emailer.send_service_start_notification,
                                 kwargs={'settings_path': os.path.join(app_dir, 'settings.json'),
                                         'service_name': "Rack Monitor",
-                                        'log_path': settings['app']['log_path'],
+                                        'path_of_logs_to_send': settings['app']['log_path'],
                                         'delay': 0 if debug_mode else 300})
     th_email.start()
 
@@ -675,14 +666,14 @@ def main():
         rotate=settings['app']['video_rotate'],
         video_width=settings['app']['video_width'],
         video_height=settings['app']['video_height'])).start()
-    # 640 x 480 is the default resolution of the usbcam
+    ## 640 x 480 is the default resolution of the usbcam
     # although according to v4l2-ctl --list-formats-ext
     # it can support a lot others
     threading.Thread(target=fans_controller_loop, args=()).start()
     threading.Thread(target=door_sensor_loop, args=()).start()
     threading.Thread(target=led_display_loop, args=()).start()
 
-    waitress.serve(app, host="127.0.0.1", port=88)
+    waitress.serve(app, host="0.0.0.0", port=80)
     logging.info('Rack Monitor finished')
 
 
