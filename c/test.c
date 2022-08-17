@@ -1,10 +1,16 @@
+// This is a brute-force translation of https://github.com/shrikantpatnaik/Pi7SegPy/blob/master/Pi7SegPy.py
+
 #include <pigpio.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <stdbool.h>
+
+
 int data = 17;
 int clk = 11;
 int latch = 18;
 int chain = 2;
+
 
 void push_bit(int bit) {
     gpioWrite(clk, PI_LOW);
@@ -46,7 +52,7 @@ void initt() {
 }
 
 
-int writee(unsigned int value) {
+int show(unsigned int value) {
     if (value > 0b1111111111111111){ // value.bit_length() > (8*chain):{
        fprintf(stderr, "Tried to write more bits than available\n");
     }
@@ -56,11 +62,15 @@ int writee(unsigned int value) {
     
 }
 
+unsigned int append_dot(unsigned int value, bool with) {
+    return with ? value & ~(1 << 7) : value;
+}
+
 unsigned int available_chars[] = {
-  0b1100000000000000,
-  0b1111100100000000,
-  0b1010010000000000,
-  0b1011000000000000,
+  0b11000000,
+  0b11111001,
+  0b10100100,
+  0b10110000,
   0b10011001,
   0b10010010,
   0b10000011,
@@ -76,14 +86,18 @@ int main() {
       return 1;
    }
    initt();
-  //while (1){
-    gpioWrite(latch, PI_HIGH);
+   int vals[] = {3,1,4,2};
+   int with_dots[] = {1,0,0,0};
+  while (1){
+    
     for (int i = 0; i < 4; ++i) {
-      writee(available_chars[i] | 1 << i);
-      
+      show(append_dot(available_chars[vals[i]], with_dots[i]) << 8 | 1 << (3-i));      
+      gpioWrite(latch, PI_HIGH);
+      gpioWrite(latch, PI_LOW); 
+      usleep(5000);
     }
-    gpioWrite(latch, PI_LOW);
- // }
+    
+  }
 
   return 0;
 }
