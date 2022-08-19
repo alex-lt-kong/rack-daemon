@@ -1,11 +1,27 @@
 # rack-monitor
 
-A tool developed in Python to:
+A tool intended to run on embedded systems to:
 
 1. Read temperature values from four DS18B20 temperature sensors;
 1. Control two Sunon cooling fans based on ambient and cabinet temperature readings with a IRF520 MOS Driver Module;
 1. Detect cabinet door opening with a reed switch (a.k.a. door sensor);
 1. Read from an USB IPCam and show real-time image;
+
+## Dependency
+
+* Common libs: `apt install libsqlite3-dev`
+
+* Pigpio
+```
+git clone https://github.com/joan2937/pigpio
+cd ./pigpio
+mkdir ./build
+cd ./build
+cmake ../
+make
+make install
+```
+
 
 # Software
 
