@@ -70,7 +70,6 @@ void* thread_apply_fans_load(void* payload) {
    time_t now;
 
    const uint16_t fans_pin = 23;
-   double fans_load = 0.5;;
    gpioSetMode(fans_pin, PI_OUTPUT);
    gpioSetPWMfrequency(fans_pin, 50); // Set GPIO23 to 50Hz.
    
@@ -81,12 +80,12 @@ void* thread_apply_fans_load(void* payload) {
       iter += 1;
       //printf("temps: %d, %d, %d, %d\n", pl->temps[0], pl->temps[1], pl->temps[2], pl->temps[3]);
       int16_t delta = ((pl->temps[0] + pl->temps[1]) - (pl->temps[2] + pl->temps[3])) / 2;
-      fans_load = delta / 1000.0 / 10.0;
+      pl->fans_load = delta / 1000.0 / 10.0;
       //printf("delta: %d, fans_load_raw: %f, ", delta, fans_load);
-      fans_load = fans_load > 1.0 ? 1.0 : fans_load;
-      fans_load = fans_load < 0.0 ? 0 : fans_load;
+      pl->fans_load = pl->fans_load > 1.0 ? 1.0 : pl->fans_load;
+      pl->fans_load = pl->fans_load < 0.0 ? 0 : pl->fans_load;
       //printf("fans_load_regulated: %f\n", fans_load);
-      if (gpioPWM(fans_pin, fans_load * 254) != 0) {
+      if (gpioPWM(fans_pin, pl->fans_load * 254) != 0) {
          syslog(LOG_ERR, "Failed to set new fans load.");
          continue;
       }      
@@ -121,7 +120,7 @@ void* thread_apply_fans_load(void* payload) {
          sqlite3_bind_int(stmt, 3, pl->temps[1]);
          sqlite3_bind_int(stmt, 4, pl->temps[2]);
          sqlite3_bind_int(stmt, 5, pl->temps[3]);;
-         sqlite3_bind_double(stmt, 6, fans_load);
+         sqlite3_bind_double(stmt, 6, pl->fans_load);
          sqlite3_step(stmt);
          rc = sqlite3_finalize(stmt);
          if (rc != SQLITE_OK) {         
@@ -178,17 +177,19 @@ void* thread_set_7seg_display(void* payload) {
 
    while (!done) {
       internal_temp = (pl->temps[0] + pl->temps[1]) / 2;
-      values[0] = 10;
+      values[0] = 10; // means turning the digit off
       values[1] = internal_temp % 100000 / 10000;
       values[2] = internal_temp % 10000 / 1000;
       values[3] = internal_temp % 1000 / 100;
 
       uint16_t fl = pl->fans_load * 1000;
-      values[4] = 10;
-      values[5] = fl % 10000 / 1000;
-      values[6] = fl % 1000 / 100;
-      values[7] = fl % 100 / 10;
-      
+      values[4] = fl % 10000 / 1000;
+      if (values[4] == 0) {
+         values[4] = 10; // means turning the digit off
+      }
+      values[5] = fl % 1000 / 100;
+      values[6] = fl % 100 / 10;
+      values[7] = fl % 10;
       show(values, dots);
    }
    
