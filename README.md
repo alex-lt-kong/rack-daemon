@@ -7,11 +7,11 @@ A tool intended to run on embedded systems to:
 1. Detect cabinet door opening with a reed switch (a.k.a. door sensor);
 1. Read from an USB IPCam and show real-time image;
 
-## Dependency
+## Environment and dependency
 
 * Common libs: `apt install libsqlite3-dev`
 
-* Pigpio
+* `Pigpio`: used to manipulate GPIO pins.
 ```
 git clone https://github.com/joan2937/pigpio
 cd ./pigpio
@@ -21,6 +21,10 @@ cmake ../
 make
 make install
 ```
+
+* Add path to `LD_LIBRARY_PATH`: `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/:/usr/local/lib/aarch64-linux-gnu/`.
+
+* `OpenCV`: Install following [this link](https://github.com/alex-lt-kong/q-rtsp-viewer#opencv-installation-and-reference).
 
 
 # Software

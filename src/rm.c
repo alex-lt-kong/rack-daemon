@@ -1,12 +1,14 @@
-#include <stdio.h>
-#include <unistd.h>
+#include <opencv2/imgcodecs/imgcodecs_c.h>
+#include <opencv2/videoio/videoio_c.h>
 #include <pigpio.h>
 #include <stdlib.h>
 #include <fcntl.h>
 #include <string.h>
 #include <signal.h>
 #include <sqlite3.h>
+#include <stdio.h>
 #include <syslog.h>
+#include <unistd.h>
 
 #include "7seg.c"
 
@@ -38,9 +40,9 @@ void* thread_monitor_rack_door() {
       current_status = gpioRead(pin_neg);
       if (current_status != last_status) {
          if (current_status == true) {
-            printf("Door is closed\n");
+            printf("Rack door is closed\n");
          } else {
-            printf("Door is opened\n");
+            printf("Rack door is opened\n");
          }
          last_status = current_status;
       }
@@ -167,6 +169,32 @@ void* thread_get_readings_from_sensors(void* payload) {
    syslog(LOG_INFO, "thread_get_readings_from_sensors() quits gracefully.");
 }
 
+void* thread_capture_live_image() {
+   syslog(LOG_INFO, "thread_capture_live_image() started.");
+   CvCapture* capture = cvCreateFileCapture("/dev/video0");
+   IplImage* frame;
+   time_t now;
+   char image_path[512];
+   uint16_t iter = 0;
+   while(!done) {
+      ++iter;
+      sleep(1);
+      if (iter < 600) { continue; }
+      iter = 0;
+      time(&now);
+      char dt_buf[] = "1970-01-01T00:00:00Z";
+      strftime(dt_buf, sizeof(dt_buf), "%FT%TZ", gmtime(&now));
+      frame = cvQueryFrame(capture);
+      if(!frame) continue;
+      strcpy(image_path, "/tmp/");
+      strcpy(image_path + strlen(image_path), dt_buf);
+      strcpy(image_path + strlen(image_path), ".jpg");
+      printf("%s\n", image_path);
+      cvSaveImage(image_path, frame, 0);
+   }
+   syslog(LOG_INFO, "thread_capture_live_image() quits gracefully.");
+}
+
 void* thread_set_7seg_display(void* payload) {
    syslog(LOG_INFO, "thread_set_7seg_display() started.");
    struct Payload* pl = (struct Payload*)payload;
@@ -200,7 +228,7 @@ int main(int argc, char *argv[])
 {
    openlog("rm.out", LOG_PID | LOG_CONS, 0);
    syslog(LOG_INFO, "rm.out started\n", argv[0]);
-   pthread_t tids[4];
+   pthread_t tids[5];
 
    if (gpioInitialise() < 0) {
       syslog(LOG_ERR, "pigpio initialisation failed, program will quit\n");
@@ -216,7 +244,9 @@ int main(int argc, char *argv[])
       pthread_create(&tids[0], NULL, thread_get_readings_from_sensors, &pl) != 0 ||
       pthread_create(&tids[1], NULL, thread_apply_fans_load, &pl) != 0 ||
       pthread_create(&tids[2], NULL, thread_monitor_rack_door, NULL) != 0 ||
-      pthread_create(&tids[3], NULL, thread_set_7seg_display, &pl) != 0
+      pthread_create(&tids[3], NULL, thread_set_7seg_display, &pl) != 0 ||
+      pthread_create(&tids[4], NULL, thread_capture_live_image, NULL) != 0
+      
    ) {
       syslog(LOG_ERR, "Failed to create essential threads, program will quit\n");
       done = 1;
