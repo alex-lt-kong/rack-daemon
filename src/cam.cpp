@@ -47,10 +47,17 @@ void* thread_capture_live_image(void*) {
       continue;
     }
     rotate(frame, frame, ROTATE_90_COUNTERCLOCKWISE);
+    uint16_t font_scale = 1;
+    Size textSize = getTextSize(dt_buf, FONT_HERSHEY_DUPLEX, font_scale, 8 * font_scale, nullptr);
+    putText(
+      frame, dt_buf, Point(5, textSize.height * 1.05), FONT_HERSHEY_DUPLEX, font_scale, Scalar(0,  0,  0  ), 8 * font_scale, LINE_AA, false
+    );
+    putText(
+      frame, dt_buf, Point(5, textSize.height * 1.05), FONT_HERSHEY_DUPLEX, font_scale, Scalar(255,255,255), 2 * font_scale, LINE_AA, false
+    );
     strcpy(image_path, "/tmp/");
     strcpy(image_path + strlen(image_path), dt_buf);
     strcpy(image_path + strlen(image_path), ".jpg");
-    printf("%s\n", image_path);
     imwrite(image_path, frame); 
     cap.release();
   }
