@@ -4,7 +4,8 @@ extern "C"
 {
 #endif
 
-void thread_live_image();
+void stop_capture_live_image();
+void* thread_capture_live_image(void*);
 
 #ifdef __cplusplus
 }

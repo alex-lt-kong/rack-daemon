@@ -50,11 +50,10 @@ void init_7seg_display() {
 }
 
 
-int write_data_to_register(uint16_t value) {
+void write_data_to_register(uint16_t value) {
     for (int i = 8 * chain - 1; i >= 0; --i) {
       push_bit(get_bit(value, i));
-    }
-    
+    }    
 }
 
 uint8_t handle_dot(uint8_t value, bool turn_it_on) {

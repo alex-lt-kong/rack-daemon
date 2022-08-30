@@ -1,6 +1,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
+#include <syslog.h>
 #include <unistd.h>
 
 
@@ -9,8 +10,14 @@
 using namespace std;
 using namespace cv;
 
-void thread_live_image() {
+volatile int done = 0;
 
+void stop_capture_live_image() {
+  done = 1;
+}
+
+void* thread_capture_live_image(void*) {
+  syslog(LOG_INFO, "thread_capture_live_image() started.");
   Mat frame;
   bool result = false;
   VideoCapture cap;
@@ -18,14 +25,17 @@ void thread_live_image() {
   
   char dt_buf[] = "19700101-000000";
   char image_path[1024];
-  
-  while (true) {
-    sleep(300);
+  uint32_t iter = 0;
+  while (!done) {
+    ++iter;
+    sleep(1);
+    if (iter < 600) { continue; }
+    iter = 0;
     time(&now);
     strftime(dt_buf, sizeof(dt_buf), "%Y%m%d-%H%M%S", localtime(&now));
     result = cap.open("/dev/video0");
     if (!result) {
-      fprintf(stderr, "cap.open() failed\n");
+      syslog(LOG_ERR,"cap.open() failed");
       continue;
     }
     cap.set(CAP_PROP_FOURCC, VideoWriter::fourcc('M', 'J', 'P', 'G')); 
@@ -33,10 +43,10 @@ void thread_live_image() {
     //cap.set(CAP_PROP_FRAME_HEIGHT, 1080);
     result = cap.read(frame);
     if (!result) {
-      fprintf(stderr, "read() failed\n");
+      syslog(LOG_ERR, "cap.read() failed");
       continue;
     }
-    //rotate(currFrame, currFrame, this->frameRotation);
+    rotate(frame, frame, ROTATE_90_COUNTERCLOCKWISE);
     strcpy(image_path, "/tmp/");
     strcpy(image_path + strlen(image_path), dt_buf);
     strcpy(image_path + strlen(image_path), ".jpg");
@@ -44,9 +54,11 @@ void thread_live_image() {
     imwrite(image_path, frame); 
     cap.release();
   }
+  syslog(LOG_INFO, "thread_capture_live_image() quits gracefully\n");
+  return NULL;
 }
 
 /*int main() {
-  thread_live_image();
+  thread_capture_live_image();
   return 0;
 }*/

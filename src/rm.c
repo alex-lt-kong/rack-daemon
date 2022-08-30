@@ -22,8 +22,11 @@ struct Payload {
 volatile sig_atomic_t done = 0;
 
 void signal_handler(int signum) {
-  syslog(LOG_INFO, "Signal %d received by signal_handler()\n", signum);
+  char msg[] = "Signal %d received by signal_handler()\n";
+  syslog(LOG_INFO, msg, signum);
+  printf(msg, signum);
   done = 1;
+  stop_capture_live_image();
 }
 
 void* thread_monitor_rack_door() {
@@ -51,6 +54,7 @@ void* thread_monitor_rack_door() {
       usleep(500 * 1000);
    }
    syslog(LOG_INFO, "thread_monitor_rack_door() quits gracefully.");
+   return NULL;
 }
 
 void* thread_apply_fans_load(void* payload) {
@@ -137,6 +141,7 @@ void* thread_apply_fans_load(void* payload) {
       sqlite3_close(db);
    }
    syslog(LOG_INFO, "thread_apply_fans_load() quits gracefully.");
+   return NULL;
 }
 
 void* thread_get_readings_from_sensors(void* payload) {
@@ -169,33 +174,8 @@ void* thread_get_readings_from_sensors(void* payload) {
       }
    }
    syslog(LOG_INFO, "thread_get_readings_from_sensors() quits gracefully.");
+   return NULL;
 }
-
-/*void* thread_capture_live_image() {
-   syslog(LOG_INFO, "thread_capture_live_image() started.");
-   CvCapture* capture = cvCreateFileCapture("/dev/video0");
-   IplImage* frame;
-   time_t now;
-   char image_path[512];
-   uint16_t iter = 0;
-   while(!done) {
-      ++iter;
-      sleep(1);
-      if (iter < 600) { continue; }
-      iter = 0;
-      time(&now);
-      char dt_buf[] = "1970-01-01T00:00:00Z";
-      strftime(dt_buf, sizeof(dt_buf), "%FT%TZ", gmtime(&now));
-      frame = cvQueryFrame(capture);
-      if(!frame) continue;
-      strcpy(image_path, "/tmp/");
-      strcpy(image_path + strlen(image_path), dt_buf);
-      strcpy(image_path + strlen(image_path), ".jpg");
-      printf("%s\n", image_path);
-      cvSaveImage(image_path, frame, 0);
-   }
-   syslog(LOG_INFO, "thread_capture_live_image() quits gracefully.");
-}*/
 
 void* thread_set_7seg_display(void* payload) {
    syslog(LOG_INFO, "thread_set_7seg_display() started.");
@@ -224,13 +204,14 @@ void* thread_set_7seg_display(void* payload) {
    }
    
    syslog(LOG_INFO, "thread_set_7seg_display() quits gracefully.");
+   return NULL;
 }
 
 int main(int argc, char *argv[])
 {
    openlog("rm.out", LOG_PID | LOG_CONS, 0);
-   syslog(LOG_INFO, "rm.out started\n", argv[0]);
-   pthread_t tids[4];
+   syslog(LOG_INFO, "rm.out started\n");
+   pthread_t tids[5];
 
    if (gpioInitialise() < 0) {
       syslog(LOG_ERR, "pigpio initialisation failed, program will quit\n");
@@ -246,8 +227,8 @@ int main(int argc, char *argv[])
       pthread_create(&tids[0], NULL, thread_get_readings_from_sensors, &pl) != 0 ||
       pthread_create(&tids[1], NULL, thread_apply_fans_load, &pl) != 0 ||
       pthread_create(&tids[2], NULL, thread_monitor_rack_door, NULL) != 0 ||
-      pthread_create(&tids[3], NULL, thread_set_7seg_display, &pl) != 0
-      //pthread_create(&tids[4], NULL, thread_live_image, NULL) != 0
+      pthread_create(&tids[3], NULL, thread_set_7seg_display, &pl) != 0 ||
+      pthread_create(&tids[4], NULL, thread_capture_live_image, NULL) != 0
       
    ) {
       syslog(LOG_ERR, "Failed to create essential threads, program will quit\n");
@@ -263,7 +244,6 @@ int main(int argc, char *argv[])
    sigaction(SIGINT, &act, 0);
    sigaction(SIGABRT, &act, 0);
    sigaction(SIGTERM, &act, 0);
-   thread_live_image();
    for (int i = 0; i < sizeof(tids) / sizeof(tids[0]); ++i) {
       pthread_join(tids[i], NULL);
    }
