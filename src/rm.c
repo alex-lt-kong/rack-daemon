@@ -1,5 +1,6 @@
-#include <opencv2/imgcodecs/imgcodecs_c.h>
+/*#include <opencv2/imgcodecs/imgcodecs_c.h>
 #include <opencv2/videoio/videoio_c.h>
+#include <opencv2/core/core_c.h>*/
 #include <pigpio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -10,6 +11,7 @@
 #include <syslog.h>
 #include <unistd.h>
 
+#include "cam.h"
 #include "7seg.c"
 
 struct Payload {
@@ -169,7 +171,7 @@ void* thread_get_readings_from_sensors(void* payload) {
    syslog(LOG_INFO, "thread_get_readings_from_sensors() quits gracefully.");
 }
 
-void* thread_capture_live_image() {
+/*void* thread_capture_live_image() {
    syslog(LOG_INFO, "thread_capture_live_image() started.");
    CvCapture* capture = cvCreateFileCapture("/dev/video0");
    IplImage* frame;
@@ -193,7 +195,7 @@ void* thread_capture_live_image() {
       cvSaveImage(image_path, frame, 0);
    }
    syslog(LOG_INFO, "thread_capture_live_image() quits gracefully.");
-}
+}*/
 
 void* thread_set_7seg_display(void* payload) {
    syslog(LOG_INFO, "thread_set_7seg_display() started.");
@@ -228,7 +230,7 @@ int main(int argc, char *argv[])
 {
    openlog("rm.out", LOG_PID | LOG_CONS, 0);
    syslog(LOG_INFO, "rm.out started\n", argv[0]);
-   pthread_t tids[5];
+   pthread_t tids[4];
 
    if (gpioInitialise() < 0) {
       syslog(LOG_ERR, "pigpio initialisation failed, program will quit\n");
@@ -244,8 +246,8 @@ int main(int argc, char *argv[])
       pthread_create(&tids[0], NULL, thread_get_readings_from_sensors, &pl) != 0 ||
       pthread_create(&tids[1], NULL, thread_apply_fans_load, &pl) != 0 ||
       pthread_create(&tids[2], NULL, thread_monitor_rack_door, NULL) != 0 ||
-      pthread_create(&tids[3], NULL, thread_set_7seg_display, &pl) != 0 ||
-      pthread_create(&tids[4], NULL, thread_capture_live_image, NULL) != 0
+      pthread_create(&tids[3], NULL, thread_set_7seg_display, &pl) != 0
+      //pthread_create(&tids[4], NULL, thread_live_image, NULL) != 0
       
    ) {
       syslog(LOG_ERR, "Failed to create essential threads, program will quit\n");
@@ -261,6 +263,7 @@ int main(int argc, char *argv[])
    sigaction(SIGINT, &act, 0);
    sigaction(SIGABRT, &act, 0);
    sigaction(SIGTERM, &act, 0);
+   thread_live_image();
    for (int i = 0; i < sizeof(tids) / sizeof(tids[0]); ++i) {
       pthread_join(tids[i], NULL);
    }
