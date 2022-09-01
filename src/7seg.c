@@ -84,7 +84,7 @@ int show(uint8_t* values, bool* with_dots) {
     // 2nd byte: controls which digit the above 7-segment definiton should be applied to.
     gpioWrite(latch, PI_HIGH);
     gpioWrite(latch, PI_LOW); 
-    usleep(500);
+    usleep(200);
   }
   return 0;
 }

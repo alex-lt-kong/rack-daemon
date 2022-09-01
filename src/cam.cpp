@@ -29,7 +29,7 @@ void* thread_capture_live_image(void*) {
   while (!done) {
     ++iter;
     sleep(1);
-    if (iter < 600) { continue; }
+    if (iter < 3600) { continue; }
     iter = 0;
     time(&now);
     strftime(dt_buf, sizeof(dt_buf), "%Y%m%d-%H%M%S", localtime(&now));
@@ -39,8 +39,8 @@ void* thread_capture_live_image(void*) {
       continue;
     }
     cap.set(CAP_PROP_FOURCC, VideoWriter::fourcc('M', 'J', 'P', 'G')); 
-    //cap.set(CAP_PROP_FRAME_WIDTH, 1920);
-    //cap.set(CAP_PROP_FRAME_HEIGHT, 1080);
+    cap.set(CAP_PROP_FRAME_WIDTH, 1280);
+    cap.set(CAP_PROP_FRAME_HEIGHT, 720);
     result = cap.read(frame);
     if (!result) {
       syslog(LOG_ERR, "cap.read() failed");
