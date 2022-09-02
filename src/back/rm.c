@@ -12,12 +12,15 @@
 #include "cam.h"
 #include "7seg.c"
 
+#define DB_PATH_SIZE 5432
+
 struct Payload {
   int32_t temps[4];
   float fans_load;
 };
 
 volatile sig_atomic_t done = 0;
+char db_path[DB_PATH_SIZE];
 
 void signal_handler(int signum) {
   char msg[] = "Signal %d received by signal_handler()\n";
@@ -32,6 +35,20 @@ void* thread_monitor_rack_door() {
    const int pin_pos = 19;
    const int pin_neg = 16;
 
+   const char* sql_create = 
+      "CREATE TABLE IF NOT EXISTS door_state"
+      "("
+      "  [record_id] INTEGER PRIMARY KEY AUTOINCREMENT,"
+      "  [record_time] TEXT,"
+      "  [door_state] INTEGER"
+      ")";
+   const char* sql_insert = "INSERT INTO door_state"
+            "(record_time, door_state) "
+            "VALUES(?, ?);";
+   char *sqlite_err_msg = 0;
+   time_t now;
+   sqlite3 *db;
+
    gpioSetMode(pin_pos, PI_OUTPUT);
    gpioSetMode(pin_neg, PI_INPUT);
    gpioWrite(pin_pos, PI_HIGH);
@@ -42,13 +59,42 @@ void* thread_monitor_rack_door() {
    while (!done) {
       current_status = gpioRead(pin_neg);
       if (current_status != last_status) {
-         if (current_status == true) {
-            printf("Rack door is closed\n");
-         } else {
-            printf("Rack door is opened\n");
-         }
+         // true -> circuit closed -> door closed
          last_status = current_status;
-      }
+
+         int rc = sqlite3_open(db_path, &db);      
+         if (rc != SQLITE_OK) {         
+            syslog(LOG_ERR, "Cannot open database [%s]: %s. INSERT will be skipped\n", db_path, sqlite3_errmsg(db));
+            sqlite3_close(db);
+            continue;
+         }
+         rc = sqlite3_exec(db, sql_create, 0, 0, &sqlite_err_msg);      
+         if (rc != SQLITE_OK) {         
+            syslog(LOG_ERR, "SQL error: %s. CREATE is not successful.\n", sqlite_err_msg);         
+            sqlite3_free(sqlite_err_msg);        
+            sqlite3_close(db);
+            continue;
+         }
+         sqlite3_stmt *stmt;
+         sqlite3_prepare_v2(db, sql_insert, 512, &stmt, NULL);
+         if(stmt != NULL) {
+            
+            time(&now);
+            char buf[sizeof("1970-01-01T00:00:00Z")];
+            strftime(buf, sizeof buf, "%Y-%m-%dT%H:%M:%SZ", gmtime(&now)); 
+            sqlite3_bind_text(stmt, 1, buf, -1, NULL);
+            sqlite3_bind_int(stmt, 2, !current_status);
+            // here we try to be consistent with common sense -> 1 means "triggered" and thus "opened"
+            sqlite3_step(stmt);
+            rc = sqlite3_finalize(stmt);
+            if (rc != SQLITE_OK) {         
+               syslog(LOG_ERR, "SQL error: %d. INSERT is not successful.\n", rc);
+               sqlite3_close(db);
+               continue;
+            }
+         }
+         sqlite3_close(db);
+         }
       usleep(500 * 1000);
    }
    syslog(LOG_INFO, "thread_monitor_rack_door() quits gracefully.");
@@ -82,17 +128,6 @@ void* thread_apply_fans_load(void* payload) {
    uint32_t iter = 0;
    sqlite3 *db;
 
-   const size_t db_path_size = 5432;
-   char db_path[db_path_size];
-   readlink("/proc/self/exe", db_path, db_path_size);
-   char* db_dir = dirname(db_path); // doc exlicitly says we shouldnt free() it.
-   strncpy(db_path, db_dir, db_path_size - 1);
-   // If the length of src is less than n, strncpy() writes an additional NULL characters to dest to ensure that
-   // a total of n characters are written.
-   // HOWEVER, if there is no null character among the first n character of src, the string placed in dest will
-   // not be null-terminated. So strncpy() does not guarantee that the destination string will be NULL terminated.
-   // Ref: https://www.geeksforgeeks.org/why-strcpy-and-strncpy-are-not-safe-to-use/
-   strncpy(db_path + strnlen(db_path, db_path_size - 30), "/data.sqlite", db_path_size - 1);
    while (!done) {
       sleep(1);
       iter += 1;
@@ -120,7 +155,7 @@ void* thread_apply_fans_load(void* payload) {
       }
       rc = sqlite3_exec(db, sql_create, 0, 0, &sqlite_err_msg);      
       if (rc != SQLITE_OK) {         
-         syslog(LOG_ERR, "SQL error: %s. INSERT is not successful.\n", sqlite_err_msg);         
+         syslog(LOG_ERR, "SQL error: %s. CREATE is not successful.\n", sqlite_err_msg);         
          sqlite3_free(sqlite_err_msg);        
          sqlite3_close(db);
          continue;
@@ -226,6 +261,17 @@ int main(int argc, char *argv[])
       closelog();
       return 1;
    }
+
+   readlink("/proc/self/exe", db_path, DB_PATH_SIZE);
+   char* db_dir = dirname(db_path); // doc exlicitly says we shouldnt free() it.
+   strncpy(db_path, db_dir, DB_PATH_SIZE - 1);
+   // If the length of src is less than n, strncpy() writes an additional NULL characters to dest to ensure that
+   // a total of n characters are written.
+   // HOWEVER, if there is no null character among the first n character of src, the string placed in dest will
+   // not be null-terminated. So strncpy() does not guarantee that the destination string will be NULL terminated.
+   // Ref: https://www.geeksforgeeks.org/why-strcpy-and-strncpy-are-not-safe-to-use/
+   strncpy(db_path + strnlen(db_path, DB_PATH_SIZE - 30), "/data.sqlite", DB_PATH_SIZE - 1);
+
    struct Payload pl;
    pl.temps[0] = 65535;
    pl.temps[1] = 65535;
