@@ -1,6 +1,4 @@
-/*#include <opencv2/imgcodecs/imgcodecs_c.h>
-#include <opencv2/videoio/videoio_c.h>
-#include <opencv2/core/core_c.h>*/
+#include <libgen.h>
 #include <pigpio.h>
 #include <stdlib.h>
 #include <fcntl.h>
@@ -83,10 +81,21 @@ void* thread_apply_fans_load(void* payload) {
    
    uint32_t iter = 0;
    sqlite3 *db;
+
+   const size_t db_path_size = 5432;
+   char db_path[db_path_size];
+   readlink("/proc/self/exe", db_path, db_path_size);
+   char* db_dir = dirname(db_path); // doc exlicitly says we shouldnt free() it.
+   strncpy(db_path, db_dir, db_path_size - 1);
+   // If the length of src is less than n, strncpy() writes an additional NULL characters to dest to ensure that
+   // a total of n characters are written.
+   // HOWEVER, if there is no null character among the first n character of src, the string placed in dest will
+   // not be null-terminated. So strncpy() does not guarantee that the destination string will be NULL terminated.
+   // Ref: https://www.geeksforgeeks.org/why-strcpy-and-strncpy-are-not-safe-to-use/
+   strncpy(db_path + strnlen(db_path, db_path_size - 30), "/data.sqlite", db_path_size - 1);
    while (!done) {
       sleep(1);
       iter += 1;
-      //printf("temps: %d, %d, %d, %d\n", pl->temps[0], pl->temps[1], pl->temps[2], pl->temps[3]);
       int16_t delta = ((pl->temps[0] + pl->temps[1]) - (pl->temps[2] + pl->temps[3])) / 2;
       pl->fans_load = delta / 1000.0 / 10.0;
       //printf("delta: %d, fans_load_raw: %f, ", delta, fans_load);
@@ -103,9 +112,9 @@ void* thread_apply_fans_load(void* payload) {
       iter = 0;
       
       
-      int rc = sqlite3_open("data.sqlite", &db);      
+      int rc = sqlite3_open(db_path, &db);      
       if (rc != SQLITE_OK) {         
-         syslog(LOG_ERR, "Cannot open database: %s. INSERT will be skipped\n", sqlite3_errmsg(db));
+         syslog(LOG_ERR, "Cannot open database [%s]: %s. INSERT will be skipped\n", db_path, sqlite3_errmsg(db));
          sqlite3_close(db);
          continue;
       }
@@ -132,8 +141,7 @@ void* thread_apply_fans_load(void* payload) {
          sqlite3_step(stmt);
          rc = sqlite3_finalize(stmt);
          if (rc != SQLITE_OK) {         
-            syslog(LOG_ERR, "SQL error: %d. INSERT is not successful.\n", rc);         
-            sqlite3_free(sqlite_err_msg);        
+            syslog(LOG_ERR, "SQL error: %d. INSERT is not successful.\n", rc);
             sqlite3_close(db);
             continue;
          }
