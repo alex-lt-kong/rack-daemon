@@ -1,5 +1,6 @@
 # ===== Custom =====
 
+images/*
 settings.json
 users.json
 fans.mode

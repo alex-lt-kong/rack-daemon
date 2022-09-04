@@ -141,7 +141,7 @@ void* thread_apply_fans_load(void* payload) {
          syslog(LOG_ERR, "Failed to set new fans load.");
          continue;
       }      
-      if (iter < 600) {
+      if (iter < 3600) {
          continue;
       }
       iter = 0;

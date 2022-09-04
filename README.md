@@ -30,42 +30,42 @@ make install
 # Software
 
 <p float="left">
-    <img src="./images/desktop.png" height="650" alt="Desktop GUI" />    
-    <img src="./images/smartphone.png" height="650" alt="Mobile GUI" />
+    <img src="./assets/desktop.png" height="650" alt="Desktop GUI" />    
+    <img src="./assets/smartphone.png" height="650" alt="Mobile GUI" />
 </p>
 
 # Hardware
 
 ## Wiring Diagram
 ### Door sensor
-<img src="./images/wiring-diagram.png" alt="Wiring Diagram" />
+<img src="./assets/wiring-diagram.png" alt="Wiring Diagram" />
 
 ### Fans controller
 Undocumented
 
 ## Raspberry Pi Rack Mount Design
 
-<img src="./images/rackmount-design.png" alt="Raspberry Pi Rackmount Design" />
+<img src="./assets/rackmount-design.png" alt="Raspberry Pi Rackmount Design" />
 
 ## Components
 ### IRF520 MOS Driver Module
-<img src="./images/mos-driver-module.jpeg" alt="IRF520 MOS Driver Module" width="300" />
+<img src="./assets/mos-driver-module.jpeg" alt="IRF520 MOS Driver Module" width="300" />
 
 ### Sunon Cooling Fan x2
-<img src="./images/sunon-cooling-fan.jpg" alt="Sunon Cooling Fan" width="300" />
+<img src="./assets/sunon-cooling-fan.jpg" alt="Sunon Cooling Fan" width="300" />
 
 ### Door sensor
-<img src="./images/door-sensor.jpg" alt="Door sensor" width="300" />
+<img src="./assets/door-sensor.jpg" alt="Door sensor" width="300" />
 
 ## Installation
 ### Raspberry Pi and its rackmount
-<img src="./images/raspberry-pi.jpg" height="450" alt="Raspberry Pi" />    
+<img src="./assets/raspberry-pi.jpg" height="450" alt="Raspberry Pi" />    
 
 ### IPCam
-<img src="./images/ipcam.jpg" height="450" alt="IPCam" />
+<img src="./assets/ipcam.jpg" height="450" alt="IPCam" />
 
 ### Cooling Fans
-<img src="./images/cooling-fans.jpg" height="450" alt="Cooling Fans" />
+<img src="./assets/cooling-fans.jpg" height="450" alt="Cooling Fans" />
 
 ### Temperature sensor
 
