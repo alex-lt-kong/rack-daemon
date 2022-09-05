@@ -80,8 +80,8 @@ void* thread_monitor_rack_door() {
          if(stmt != NULL) {
             
             time(&now);
-            char buf[sizeof("1970-01-01T00:00:00Z")];
-            strftime(buf, sizeof buf, "%Y-%m-%dT%H:%M:%SZ", gmtime(&now)); 
+            char buf[sizeof("1970-01-01 00:00:00")];
+            strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", localtime(&now)); 
             sqlite3_bind_text(stmt, 1, buf, -1, NULL);
             sqlite3_bind_int(stmt, 2, !current_status);
             // here we try to be consistent with common sense -> 1 means "triggered" and thus "opened"
@@ -165,8 +165,8 @@ void* thread_apply_fans_load(void* payload) {
       if(stmt != NULL) {
          
          time(&now);
-         char buf[sizeof("1970-01-01T00:00:00Z")];
-         strftime(buf, sizeof buf, "%Y-%m-%dT%H:%M:%SZ", gmtime(&now)); 
+         char buf[sizeof("1970-01-01 00:00:00")];
+         strftime(buf, sizeof buf, "%Y-%m-%d-%H:%M:%S", localtime(&now)); 
          sqlite3_bind_text(stmt, 1, buf, -1, NULL);
          sqlite3_bind_int(stmt, 2, pl->temps[0]);
          sqlite3_bind_int(stmt, 3, pl->temps[1]);

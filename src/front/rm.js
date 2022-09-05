@@ -6,7 +6,7 @@ const fs = require('fs');
 const https = require('https');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
-
+console.log(__dirname);
 const imagesDir = path.join(__dirname, '..', '..', 'images/');
 
 
@@ -22,10 +22,7 @@ https.createServer(
   );
 });
 
-// Root endpoint
-app.get('/', (req, res, next) => {
-  res.json({'message': 'Ok'});
-});
+app.use('/', express.static(path.join(__dirname, 'public/')));
 
 app.get('/get_temp_control_json/', (req, res, next) => {
   const dbPath = '../../data.sqlite';
@@ -93,7 +90,8 @@ app.get('/get_images_list_json/', (req, res, next) => {
     // According to this link: https://github.com/nodejs/node/issues/3232
     // On Linux, fs.readdir()'s result is guaranteed to be sorted.
     // However, this behavior is not documented.
-    fileNames.sort().reverse();
+    fileNames.sort().reverse().slice(0, 72);
+    fileNames.reverse();
     if (err) {
       res.status(500).json({
         'status': 'error',
@@ -105,7 +103,7 @@ app.get('/get_images_list_json/', (req, res, next) => {
     });
     res.json({
       'status': 'success',
-      'data': imagesNameList.slice(0, 24)
+      'data': imagesNameList
     });
   });
 });
