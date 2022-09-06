@@ -2,7 +2,6 @@ import * as React from 'react';
 import {createRoot} from 'react-dom/client';
 import Slider from '@mui/material/Slider';
 import axios from 'axios';
-import CardHeader from '@mui/material/CardHeader';
 import Grid from '@mui/material/Grid'; // Grid version 1
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
@@ -12,7 +11,7 @@ import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardActions from '@mui/material/CardActions';
 import CardContent from '@mui/material/CardContent';
-import CardMedia from '@mui/material/CardMedia';
+//import MaterialReactTable from 'material-react-table';
 
 class DoorState extends React.Component {
   constructor(props) {
@@ -41,8 +40,37 @@ class DoorState extends React.Component {
   }
 
   render() {
+    //should be memoized or stable
+    const columns = useMemo(
+        () => [
+          {
+            accessorKey: 'record_id', //normal accessorKey
+            header: 'ID'
+          },
+          {
+            accessorKey: 'record_time',
+            header: 'Time'
+          },
+          {
+            accessorKey: 'door_state',
+            header: 'State'
+          }
+        ],
+        []
+    );
     return (
-      <></>
+      <Card sx={{display: 'flex'}}>
+        <Box sx={{display: 'flex', flexDirection: 'column'}}>
+          <CardContent sx={{flex: '1 0 auto'}}>
+            <Typography component="div" variant="h5">
+              Door State
+            </Typography>
+          </CardContent>
+          <Box sx={{display: 'flex', alignItems: 'center', pl: 1, pb: 1}}>
+            {/*<MaterialReactTable columns={columns} data={this.state.doorStates} />*/}
+          </Box>
+        </Box>
+      </Card>
     );
   }
 }
@@ -87,7 +115,7 @@ class LiveImages extends React.Component {
   render() {
     if (this.state.imagesList !== null && typeof this.state.imagesList[this.state.imageId] === 'string') {
       return (
-        <Card sx={{maxWidth: 480, mt: '2rem'}}>
+        <Card sx={{maxWidth: 380}}>
           <CardMedia
             component="img"
             height="640"
@@ -118,7 +146,7 @@ class LiveImages extends React.Component {
 
 export default function ButtonAppBar() {
   return (
-    <Box sx={{flexGrow: 1}}>
+    <Box sx={{flexGrow: 1, mb: '2rem'}}>
       <AppBar position="static">
         <Toolbar>
           <Typography
@@ -159,29 +187,17 @@ class Index extends React.Component {
   render() {
     return (
       <>
-
         <ButtonAppBar />
         <div style={{
-          maxWidth: '1280px', padding: '0.75rem', display: 'block',
-          marginLeft: 'auto', marginRight: 'auto', marginBottom: '3em'
+          maxWidth: '1280px', display: 'block',
+          marginLeft: 'auto', marginRight: 'auto'
         }}>
           <Grid container spacing={2}>
-            <Grid xs={12} md={6} >
+            <Grid xs={12} md={4} >
               <LiveImages />
             </Grid>
-            <Grid xs={12} md={6} >
-              <header className="d-flex align-items-center pb-2 mb-3 border-bottom">
-                <a href="." className="d-flex align-items-center text-dark text-decoration-none">
-                  <svg 
-                    xmlns="http://www.w3.org/2000/svg" width="32" height="32" fill="currentColor"
-                    className="bi bi-door-open-fill" viewBox="0 0 16 16"
-                  >
-                    <path d="M1.5 15a.5.5 0 0 0 0 1h13a.5.5 0 0 0 0-1H13V2.5A1.5 1.5 0 0 0 11.5 1H11V.5a.5.5 0 0 0-.57-.495l-7 1A.5.5 0 0 0 3 1.5V15H1.5zM11 2h.5a.5.5 0 0 1 .5.5V15h-1V2zm-2.5 8c-.276 0-.5-.448-.5-1s.224-1 .5-1 .5.448.5 1-.224 1-.5 1z"/>
-                  </svg>
-                  <span fontWeight="bold" className="fs-3">&nbsp;Door</span>
-                </a>
-              </header>
-              <div><DoorState /></div>
+            <Grid xs={12} md={8} >
+              <DoorState />
             </Grid>
           </Grid>
         </div>
@@ -189,6 +205,7 @@ class Index extends React.Component {
     );
   }
 }
+ 
 
 const container = document.getElementById('root');
 const root = createRoot(container); // createRoot(container!) if you use TypeScript
