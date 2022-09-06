@@ -1,5 +1,5 @@
 import * as React from 'react';
-import {createRoot} from 'react-dom/client';
+import ReactDOM from 'react-dom';
 import Slider from '@mui/material/Slider';
 import axios from 'axios';
 import Grid from '@mui/material/Grid'; // Grid version 1
@@ -11,13 +11,83 @@ import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardActions from '@mui/material/CardActions';
 import CardContent from '@mui/material/CardContent';
-//import MaterialReactTable from 'material-react-table';
+import CardMedia from '@mui/material/CardMedia';
+import MUIDataTable from 'mui-datatables';
+
+class TempsAndFans extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      readings: null
+    };
+  }
+
+  componentDidMount() {
+    axios.get('../get_temp_control_json/')
+        .then((response) => {
+          this.setState({
+            readings: response.data.data
+          }, ()=>{
+            console.log(this.state.readings);
+          });
+        })
+        .catch((error) => {
+          console.log(error);
+          alert(`${error}`);
+        // You canNOT write error.response or whatever similar here.
+        // The reason is that this catch() catches both network error and other errors,
+        // which may or may not have a response property.
+        });
+  }
+
+  render() {
+    const columns = [
+      {
+        name: 'record_time',
+        label: 'Timestamp'
+      }, {
+        name: 'external_temp_0',
+        label: 'External0'
+      }, {
+        name: 'external_temp_1',
+        label: 'External1'
+      }, {
+        name: 'internal_temp_0',
+        label: 'Internal0'
+      }, {
+        name: 'internal_temp_1',
+        label: 'Internal1'
+      }, {
+        name: 'fans_load',
+        label: 'Fans Load'
+      }
+    ];
+    const options = {
+      download: false,
+      print: false,
+      search: false,
+      pagination: false,
+      selectableRowsHeader: false,
+      filter: false,
+      viewColumns: false,
+      selectableRows: 'none'
+    };
+
+    if (this.state.readings !== null) {
+      return (
+        <MUIDataTable title={'Temps and Fans'} data={this.state.readings} columns={columns} options={options} />
+      );
+    } else {
+      return <></>;
+    }
+  }
+}
 
 class DoorState extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      doorStates: {}
+      doorStates: null
     };
   }
 
@@ -40,38 +110,44 @@ class DoorState extends React.Component {
   }
 
   render() {
-    //should be memoized or stable
-    const columns = useMemo(
-        () => [
-          {
-            accessorKey: 'record_id', //normal accessorKey
-            header: 'ID'
-          },
-          {
-            accessorKey: 'record_time',
-            header: 'Time'
-          },
-          {
-            accessorKey: 'door_state',
-            header: 'State'
-          }
-        ],
-        []
-    );
-    return (
-      <Card sx={{display: 'flex'}}>
-        <Box sx={{display: 'flex', flexDirection: 'column'}}>
-          <CardContent sx={{flex: '1 0 auto'}}>
-            <Typography component="div" variant="h5">
-              Door State
-            </Typography>
-          </CardContent>
-          <Box sx={{display: 'flex', alignItems: 'center', pl: 1, pb: 1}}>
-            {/*<MaterialReactTable columns={columns} data={this.state.doorStates} />*/}
-          </Box>
-        </Box>
-      </Card>
-    );
+    const columns = [
+      {
+        name: 'record_id',
+        label: 'ID',
+        options: {
+          filter: true,
+          sort: true
+        }
+      },
+      {
+        name: 'record_time',
+        label: 'Timestamp',
+        options: {
+          filter: true,
+          sort: false
+        }
+      },
+      {
+        name: 'door_state',
+        label: 'IsOpened?',
+        options: {
+          filter: true,
+          sort: false
+        }
+      }
+    ];
+    const options = {
+      download: false,
+      print: false,
+      responsive: 'standard',
+      selectableRowsHeader: false
+    };
+
+    if (this.state.doorStates !== null) {
+      return (<MUIDataTable title={'Door State'} data={this.state.doorStates} columns={columns} options={options} />);
+    } else {
+      return <></>;
+    }
   }
 }
 
@@ -115,7 +191,7 @@ class LiveImages extends React.Component {
   render() {
     if (this.state.imagesList !== null && typeof this.state.imagesList[this.state.imageId] === 'string') {
       return (
-        <Card sx={{maxWidth: 380}}>
+        <Card sx={{maxWidth: 364}}>
           <CardMedia
             component="img"
             height="640"
@@ -127,9 +203,6 @@ class LiveImages extends React.Component {
             <Typography gutterBottom variant="h5" component="div">
               CCTV
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {this.state.imagesList[this.state.imageId]}
-            </Typography>
           </CardContent>
           <CardActions>
             <Slider
@@ -140,6 +213,8 @@ class LiveImages extends React.Component {
           </CardActions>
         </Card>
       );
+    } else {
+      return <></>;
     }
   }
 }
@@ -166,9 +241,6 @@ export default function ButtonAppBar() {
           >
             Rack Monitor
           </Typography>
-          <Typography variant="h6" component="div" sx={{flexGrow: 1}}>
-            News
-          </Typography>
           <Button color="inherit">Login</Button>
         </Toolbar>
       </AppBar>
@@ -192,12 +264,15 @@ class Index extends React.Component {
           maxWidth: '1280px', display: 'block',
           marginLeft: 'auto', marginRight: 'auto'
         }}>
-          <Grid container spacing={2}>
-            <Grid xs={12} md={4} >
-              <LiveImages />
+          <Grid container>
+            <Grid xs={12} md={4}>
+              <Box display="flex" justifyContent="center" alignItems="center">
+                <LiveImages />
+              </Box>
             </Grid>
             <Grid xs={12} md={8} >
               <DoorState />
+              <TempsAndFans />
             </Grid>
           </Grid>
         </div>
@@ -205,9 +280,6 @@ class Index extends React.Component {
     );
   }
 }
- 
 
 const container = document.getElementById('root');
-const root = createRoot(container); // createRoot(container!) if you use TypeScript
-
-root.render(<Index />);
+ReactDOM.render(<Index name="Saeloun blog" />, container);

@@ -4,8 +4,7 @@ const browserify = require('browserify');
 const srcList = ['index.js'];
 
 if (process.argv.length !== 3 || (process.argv[2] !== '--prod' && process.argv[2] !== '--dev')) {
-  console.warn('Shoud specify --prod or --dev');
-  exit(1);
+  throw new Error('Shoud specify --prod or --dev');
 }
 
 // sample is from tinyify: https://github.com/browserify/tinyify

@@ -8,6 +8,7 @@ const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 console.log(__dirname);
 const imagesDir = path.join(__dirname, '..', '..', 'images/');
+const databasePath = path.join(__dirname, '..', '..', 'data.sqlite');
 
 
 https.createServer(
@@ -25,8 +26,7 @@ https.createServer(
 app.use('/', express.static(path.join(__dirname, 'public/')));
 
 app.get('/get_temp_control_json/', (req, res, next) => {
-  const dbPath = '../../data.sqlite';
-  const db = new sqlite3.Database(dbPath, (err) => {
+  const db = new sqlite3.Database(databasePath, (err) => {
     if (err) {
       res.status(500).json({
         'status': 'error',
@@ -55,8 +55,7 @@ app.get('/get_temp_control_json/', (req, res, next) => {
 });
 
 app.get('/get_rack_door_states_json/', (req, res, next) => {
-  const dbPath = '../../data.sqlite';
-  const db = new sqlite3.Database(dbPath, (err) => {
+  const db = new sqlite3.Database(databasePath, (err) => {
     if (err) {
       res.status(500).json({
         'status': 'error',
