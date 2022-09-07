@@ -12,10 +12,9 @@ for (let i = 0; i < srcList.length; ++i) {
   if (process.argv[2] === '--prod') {
     browserify(`./private/${srcList[i]}`)
         .transform('babelify', {presets: ['@babel/preset-env', '@babel/preset-react']})
-        .transform('unassertify', {global: true})
-        .transform('@goto-bus-stop/envify', {global: true})
-        .transform('uglifyify', {global: true})
-        // .plugin('common-shakeify')--cant enable this, causes error
+      //  .transform('unassertify', {global: true})
+     //   .transform('@goto-bus-stop/envify', {global: true})
+      //  .transform('uglifyify', {global: true})
         .plugin('browser-pack-flat/plugin')
         .bundle()
         .pipe(require('minify-stream')({sourceMap: false}))

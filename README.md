@@ -9,6 +9,8 @@ A tool intended to run on embedded systems to:
 
 ## Environment and dependency
 
+### Back-end
+
 * Common libs: `apt install libsqlite3-dev`
 
 * `Pigpio`: used to manipulate GPIO pins.
@@ -26,50 +28,50 @@ make install
 
 * `OpenCV`: Install following [this link](https://github.com/alex-lt-kong/q-rtsp-viewer#opencv-installation-and-reference).
 
+### Front-end
 
-# Software
+* `npm install`
+* `node babelify.js --prod`
+
+
+## Gallery
+
+### Software
 
 <p float="left">
     <img src="./assets/desktop.png" height="650" alt="Desktop GUI" />    
     <img src="./assets/smartphone.png" height="650" alt="Mobile GUI" />
 </p>
 
-# Hardware
+### Hardware
 
-## Wiring Diagram
-### Door sensor
+#### Wiring Diagram
+##### Door sensor
 <img src="./assets/wiring-diagram.png" alt="Wiring Diagram" />
 
-### Fans controller
+##### Fans controller
 Undocumented
 
-## Raspberry Pi Rack Mount Design
+#### Raspberry Pi Rack Mount Design
 
 <img src="./assets/rackmount-design.png" alt="Raspberry Pi Rackmount Design" />
 
-## Components
-### IRF520 MOS Driver Module
+#### Components
+##### IRF520 MOS Driver Module
 <img src="./assets/mos-driver-module.jpeg" alt="IRF520 MOS Driver Module" width="300" />
 
-### Sunon Cooling Fan x2
+##### Sunon Cooling Fan x2
 <img src="./assets/sunon-cooling-fan.jpg" alt="Sunon Cooling Fan" width="300" />
 
-### Door sensor
+##### Door sensor
 <img src="./assets/door-sensor.jpg" alt="Door sensor" width="300" />
 
-## Installation
-### Raspberry Pi and its rackmount
+#### Installation
+##### Raspberry Pi and its rackmount
 <img src="./assets/raspberry-pi.jpg" height="450" alt="Raspberry Pi" />    
 
-### IPCam
+##### IPCam
 <img src="./assets/ipcam.jpg" height="450" alt="IPCam" />
 
-### Cooling Fans
+##### Cooling Fans
 <img src="./assets/cooling-fans.jpg" height="450" alt="Cooling Fans" />
-
-### Temperature sensor
-
-### Door sensor
-
-
-
