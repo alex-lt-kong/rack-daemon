@@ -44,11 +44,12 @@ void* thread_capture_live_image(void*) {
 
   char dt_buf[] = "19700101-000000";
   char image_path[IMAGES_PATH_SIZE];
-  uint32_t iter = 0;
+  const uint16_t interval = 3600;
+  uint32_t iter = interval;
   while (!done) {
     ++iter;
     sleep(1);
-    if (iter < 3600) { continue; }
+    if (iter < interval) { continue; }
     iter = 0;
     time(&now);
     strftime(dt_buf, sizeof(dt_buf), "%Y%m%d-%H%M%S", localtime(&now));

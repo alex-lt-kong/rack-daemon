@@ -6,7 +6,7 @@ const fs = require('fs');
 const https = require('https');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
-console.log(__dirname);
+const basicAuth = require('express-basic-auth');
 const imagesDir = path.join(__dirname, '..', '..', 'images/');
 const databasePath = path.join(__dirname, '..', '..', 'data.sqlite');
 
@@ -19,11 +19,22 @@ https.createServer(
     app
 ).listen(configs.port, function() {
   console.log(
-      `Example app listening on port ${configs.port}!`
+      `rm.js listening on https://0.0.0.0:${configs.port}!`
   );
 });
 
+app.use(basicAuth({
+  users: configs.users,
+  challenge: true // <--- needed to actually show the login dialog!
+}));
 app.use('/', express.static(path.join(__dirname, 'public/')));
+
+app.get('/get_logged_in_user/', (req, res, next) => {
+  res.json({
+    'status': 'success',
+    'data': req.auth.user
+  });
+});
 
 app.get('/get_temp_control_json/', (req, res, next) => {
   const db = new sqlite3.Database(databasePath, (err) => {
@@ -63,7 +74,7 @@ app.get('/get_rack_door_states_json/', (req, res, next) => {
       });
       console.error(err.message);
     } else {
-      const sql = 'SELECT * FROM door_state ORDER BY record_time DESC LIMIT 5';
+      const sql = 'SELECT * FROM door_state ORDER BY record_time DESC LIMIT 6';
       const params = [];
       db.all(sql, params, (err, rows) => {
         if (err) {
@@ -89,7 +100,8 @@ app.get('/get_images_list_json/', (req, res, next) => {
     // According to this link: https://github.com/nodejs/node/issues/3232
     // On Linux, fs.readdir()'s result is guaranteed to be sorted.
     // However, this behavior is not documented.
-    fileNames.sort().reverse().slice(0, 72);
+    fileNames.sort().reverse();
+    fileNames = fileNames.slice(0, 72);
     fileNames.reverse();
     if (err) {
       res.status(500).json({
@@ -119,7 +131,10 @@ app.get('/get_images_jpg/', (req, res, next) => {
   // seems that sendFile() has built-in root directory traversal detection function.
 });
 
-// Default response for any other request
-app.use(function(req, res) {
-  res.status(404);
+app.use('/', (req, res) => {
+  return res.redirect('/html/index.html');
+});
+
+app.get('*', function(req, res) {
+  res.status(404).send('This is a naive 404 page--the URL you try to access does not exist!');
 });

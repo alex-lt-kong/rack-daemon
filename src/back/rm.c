@@ -166,7 +166,7 @@ void* thread_apply_fans_load(void* payload) {
          
          time(&now);
          char buf[sizeof("1970-01-01 00:00:00")];
-         strftime(buf, sizeof buf, "%Y-%m-%d-%H:%M:%S", localtime(&now)); 
+         strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", localtime(&now)); 
          sqlite3_bind_text(stmt, 1, buf, -1, NULL);
          sqlite3_bind_int(stmt, 2, pl->temps[0]);
          sqlite3_bind_int(stmt, 3, pl->temps[1]);

@@ -7,12 +7,14 @@ import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
+import Button from '@mui/material/Button';
 import CardActions from '@mui/material/CardActions';
 import CardContent from '@mui/material/CardContent';
 import CardMedia from '@mui/material/CardMedia';
 import MUIDataTable from 'mui-datatables';
+import StorageIcon from '@mui/icons-material/Storage';
+
 
 class TempsAndFans extends React.Component {
   constructor(props) {
@@ -47,19 +49,34 @@ class TempsAndFans extends React.Component {
         label: 'Timestamp'
       }, {
         name: 'external_temp_0',
-        label: 'External0'
+        label: 'External0',
+        options: {
+          customBodyRender: (value, tableMeta, updateValue) => `${Math.round(value / 1000 * 10) / 10}°C`
+        }
       }, {
         name: 'external_temp_1',
-        label: 'External1'
+        label: 'External1',
+        options: {
+          customBodyRender: (value, tableMeta, updateValue) => `${Math.round(value / 1000 * 10) / 10}°C`
+        }
       }, {
         name: 'internal_temp_0',
-        label: 'Internal0'
+        label: 'Internal0',
+        options: {
+          customBodyRender: (value, tableMeta, updateValue) => `${Math.round(value / 1000 * 10) / 10}°C`
+        }
       }, {
         name: 'internal_temp_1',
-        label: 'Internal1'
+        label: 'Internal1',
+        options: {
+          customBodyRender: (value, tableMeta, updateValue) => `${Math.round(value / 1000 * 10) / 10}°C`
+        }
       }, {
         name: 'fans_load',
-        label: 'Fans Load'
+        label: 'Fans Load',
+        options: {
+          customBodyRender: (value, tableMeta, updateValue) => `${Math.round(value * 100 * 10) / 10}%`
+        }
       }
     ];
     const options = {
@@ -113,26 +130,23 @@ class DoorState extends React.Component {
     const columns = [
       {
         name: 'record_id',
-        label: 'ID',
-        options: {
-          filter: true,
-          sort: true
-        }
+        label: 'ID'
       },
       {
         name: 'record_time',
-        label: 'Timestamp',
-        options: {
-          filter: true,
-          sort: false
-        }
+        label: 'Timestamp'
       },
       {
         name: 'door_state',
-        label: 'IsOpened?',
+        label: 'State',
         options: {
-          filter: true,
-          sort: false
+          customBodyRender: (value, tableMeta, updateValue) => {
+            if (value === 0) {
+              return (<Typography fontWeight={700} color='primary'>Closed</Typography>);
+            } else {
+              return (<Typography fontWeight={700} color='error'>Opened</Typography>);
+            }
+          }
         }
       }
     ];
@@ -140,7 +154,11 @@ class DoorState extends React.Component {
       download: false,
       print: false,
       responsive: 'standard',
-      selectableRowsHeader: false
+      selectableRowsHeader: false,
+      sortOrder: {
+        name: 'record_time',
+        direction: 'asc'
+      }
     };
 
     if (this.state.doorStates !== null) {
@@ -160,6 +178,7 @@ class LiveImages extends React.Component {
       imageId: 0
     };
     this.onRangeValueChange = this.onRangeValueChange.bind(this);
+    this.currentlyShowing = this.currentlyShowing.bind(this);
   }
 
   componentDidMount() {
@@ -188,6 +207,10 @@ class LiveImages extends React.Component {
     });
   };
 
+  currentlyShowing() {
+    return this.state.imagesList[this.state.imageId];
+  }
+
   render() {
     if (this.state.imagesList !== null && typeof this.state.imagesList[this.state.imageId] === 'string') {
       return (
@@ -207,6 +230,7 @@ class LiveImages extends React.Component {
           <CardActions>
             <Slider
               defaultValue={this.state.imagesList.length - 1} aria-label="Default" valueLabelDisplay="auto"
+              valueLabelFormat={this.currentlyShowing}
               min={0} max={this.state.imagesList.length - 1} onChange={this.onRangeValueChange}
               sx={{mx: '2rem'}}
             />
@@ -219,33 +243,57 @@ class LiveImages extends React.Component {
   }
 }
 
-export default function ButtonAppBar() {
-  return (
-    <Box sx={{flexGrow: 1, mb: '2rem'}}>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography
-            variant="h6"
-            noWrap
-            component="a"
-            href="/"
-            sx={{
-              mr: 2,
-              display: {xs: 'none', md: 'flex'},
-              fontFamily: 'monospace',
-              fontWeight: 700,
-              letterSpacing: '.3rem',
-              color: 'inherit',
-              textDecoration: 'none'
-            }}
-          >
-            Rack Monitor
-          </Typography>
-          <Button color="inherit">Login</Button>
-        </Toolbar>
-      </AppBar>
-    </Box>
-  );
+class NavBar extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      user: null
+    };
+  }
+
+  componentDidMount() {
+    axios.get('../get_logged_in_user/')
+        .then((response) => {
+          this.setState({
+            user: response.data.data
+          });
+        })
+        .catch((error) => {
+          console.log(error);
+          alert(`${error}`);
+        });
+  }
+  render() {
+    return (
+      <Box sx={{flexGrow: 1, mb: '1rem'}}>
+        <AppBar position="static">
+          <Toolbar>
+            <StorageIcon sx={{display: {md: 'flex'}, mr: 1}} />
+            <Typography
+              variant="h6"
+              noWrap
+              component="a"
+              href="/"
+              sx={{
+                mr: 2,
+                display: {md: 'flex'},
+                fontFamily: 'monospace',
+                fontWeight: 700,
+                letterSpacing: '.1rem',
+                color: 'inherit',
+                textDecoration: 'none'
+              }}
+            >
+              RACK MONITOR
+            </Typography>
+            <Typography variant="h6" component="div" sx={{flexGrow: 1}}>
+            </Typography>
+            <Button color="inherit">{this.state.user}</Button>
+          </Toolbar>
+        </AppBar>
+      </Box>
+    );
+  }
 }
 
 class Index extends React.Component {
@@ -259,19 +307,18 @@ class Index extends React.Component {
   render() {
     return (
       <>
-        <ButtonAppBar />
-        <div style={{
-          maxWidth: '1280px', display: 'block',
-          marginLeft: 'auto', marginRight: 'auto'
-        }}>
+        <NavBar />
+        <div style={{maxWidth: '1280px', display: 'block', marginLeft: 'auto', marginRight: 'auto'}}>
           <Grid container>
             <Grid xs={12} md={4}>
-              <Box display="flex" justifyContent="center" alignItems="center">
+              <Box display="flex" justifyContent="center" alignItems="center" mb='2rem'>
                 <LiveImages />
               </Box>
             </Grid>
             <Grid xs={12} md={8} >
-              <DoorState />
+              <Box mb='2rem'>
+                <DoorState/>
+              </Box>
               <TempsAndFans />
             </Grid>
           </Grid>
@@ -282,4 +329,4 @@ class Index extends React.Component {
 }
 
 const container = document.getElementById('root');
-ReactDOM.render(<Index name="Saeloun blog" />, container);
+ReactDOM.render(<Index />, container);
