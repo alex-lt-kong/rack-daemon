@@ -39,8 +39,8 @@ make install
 ### Software
 
 <p float="left">
-    <img src="./assets/desktop.png" width="400px" alt="Desktop GUI" />    
-    <img src="./assets/smartphone.png" width="300px" alt="Mobile GUI" />
+    <img src="./assets/desktop.png" width="500px" alt="Desktop GUI" />    
+    <img src="./assets/smartphone.png" width="250px" alt="Mobile GUI" />
 </p>
 
 ### Hardware
