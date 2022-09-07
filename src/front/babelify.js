@@ -12,12 +12,12 @@ for (let i = 0; i < srcList.length; ++i) {
   if (process.argv[2] === '--prod') {
     browserify(`./private/${srcList[i]}`)
         .transform('babelify', {presets: ['@babel/preset-env', '@babel/preset-react']})
-      //  .transform('unassertify', {global: true})
-     //   .transform('@goto-bus-stop/envify', {global: true})
-      //  .transform('uglifyify', {global: true})
-        .plugin('browser-pack-flat/plugin')
+        .transform('unassertify', {global: true})
+        .transform('@goto-bus-stop/envify', {global: true})
+        .transform('uglifyify', {global: true})
+     //   .plugin('browser-pack-flat/plugin')
         .bundle()
-        .pipe(require('minify-stream')({sourceMap: false}))
+      //  .pipe(require('minify-stream')({sourceMap: false}))
         .pipe(fs.createWriteStream(`./public/js/${srcList[i]}`));
   } else {
     browserify(`./private/${srcList[i]}`)

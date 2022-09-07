@@ -6,6 +6,7 @@ A tool intended to run on embedded systems to:
 1. Control two Sunon cooling fans based on ambient and cabinet temperature readings with a IRF520 MOS Driver Module;
 1. Detect cabinet door opening with a reed switch (a.k.a. door sensor);
 1. Read from an USB IPCam and show real-time image;
+1. A front-end single-page application to demonstrate all these.
 
 ## Environment and dependency
 
