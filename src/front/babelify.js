@@ -15,9 +15,9 @@ for (let i = 0; i < srcList.length; ++i) {
         .transform('unassertify', {global: true})
         .transform('@goto-bus-stop/envify', {global: true})
         .transform('uglifyify', {global: true})
-     //   .plugin('browser-pack-flat/plugin')
+        .plugin('browser-pack-flat/plugin')
         .bundle()
-      //  .pipe(require('minify-stream')({sourceMap: false}))
+        // .pipe(require('minify-stream')({sourceMap: false})) Doesnt work on Raspberry Pi--causes OOM exception
         .pipe(fs.createWriteStream(`./public/js/${srcList[i]}`));
   } else {
     browserify(`./private/${srcList[i]}`)

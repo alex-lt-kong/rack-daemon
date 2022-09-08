@@ -125,7 +125,8 @@ void* thread_apply_fans_load(void* payload) {
    gpioSetMode(fans_pin, PI_OUTPUT);
    gpioSetPWMfrequency(fans_pin, 50); // Set GPIO23 to 50Hz.
    
-   uint32_t iter = 0;
+   size_t interval = 3600;
+   uint32_t iter = interval;
    sqlite3 *db;
 
    while (!done) {
@@ -141,7 +142,7 @@ void* thread_apply_fans_load(void* payload) {
          syslog(LOG_ERR, "Failed to set new fans load.");
          continue;
       }      
-      if (iter < 3600) {
+      if (iter < interval) {
          continue;
       }
       iter = 0;
@@ -163,7 +164,6 @@ void* thread_apply_fans_load(void* payload) {
       sqlite3_stmt *stmt;
       sqlite3_prepare_v2(db, sql_insert, 512, &stmt, NULL);
       if(stmt != NULL) {
-         
          time(&now);
          char buf[sizeof("1970-01-01 00:00:00")];
          strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", localtime(&now)); 
