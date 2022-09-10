@@ -126,7 +126,8 @@ void* thread_apply_fans_load(void* payload) {
    gpioSetPWMfrequency(fans_pin, 50); // Set GPIO23 to 50Hz.
    
    size_t interval = 3600;
-   uint32_t iter = interval;
+   int32_t iter = interval - 60;
+   // we wait for 10 sec before first DB writing--so that we wont write non-sense default values to DB
    sqlite3 *db;
 
    while (!done) {
@@ -288,6 +289,7 @@ int main(int argc, char *argv[])
       syslog(LOG_ERR, "Failed to create essential threads, program will quit\n");
       done = 1;
       closelog();
+      gpioTerminate();
       return 1;
    }
 
