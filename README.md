@@ -13,6 +13,7 @@ A tool intended to run on embedded systems to:
 ### Back-end
 
 * Common libs: `apt install libsqlite3-dev`
+* `cURL`: `apt-get install libcurl4-gnutls-dev`
 
 * `Pigpio`: used to manipulate GPIO pins.
 ```
@@ -28,6 +29,7 @@ make install
 * Add path to `LD_LIBRARY_PATH`: `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/:/usr/local/lib/aarch64-linux-gnu/`.
 
 * `OpenCV`: Install following [this link](https://github.com/alex-lt-kong/q-rtsp-viewer#opencv-installation-and-reference).
+
 
 ### Front-end
 

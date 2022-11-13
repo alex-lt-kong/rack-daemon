@@ -19,7 +19,7 @@ https.createServer(
     app
 ).listen(configs.port, function() {
   console.log(
-      `rm.js listening on https://0.0.0.0:${configs.port}!`
+      `rd.js listening on https://0.0.0.0:${configs.port}!`
   );
 });
 
