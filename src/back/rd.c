@@ -36,13 +36,15 @@ void* thread_monitor_main_entrance() {
     syslog(LOG_INFO, "thread_monitor_main_entrance() started.");
     char envvar[] = "RD_TELEMETRY_ENDPOINT";
     if(!getenv(envvar)) {
-        syslog(LOG_INFO, "The environment variable [%s] was not found, thread_report_sensor_readings() quits gracefully.", envvar);
+        syslog(LOG_INFO, "The environment variable [%s] was not found, "
+            "thread_report_sensor_readings() quits gracefully.", envvar);
         return NULL;
     }
     char telemetry_endpoint[PATH_MAX];
     char url[PATH_MAX];
     if(snprintf(telemetry_endpoint, PATH_MAX, "%s", getenv(envvar)) >= PATH_MAX){
-        syslog(LOG_INFO, "PATH_MAX too small for %s, thread_report_sensor_readings() quits gracefully.", envvar);
+        syslog(LOG_INFO, "PATH_MAX too small for %s, "
+            "thread_report_sensor_readings() quits gracefully.", envvar);
         return NULL;
     }
     const int pin_pos = 26;
@@ -59,29 +61,29 @@ void* thread_monitor_main_entrance() {
     curl_global_init(CURL_GLOBAL_DEFAULT);
     while (!done) {
         if (gpioRead(pin_neg) == 0) {
-        ++ open_status_count;
-        if (open_status_count == 5) {
-            CURL *curl;
-            CURLcode res;
-            curl = curl_easy_init();
-            if(curl) {          
-            snprintf(url, PATH_MAX, telemetry_endpoint, 0);
-            curl_easy_setopt(curl, CURLOPT_URL, url);  
-            /* Perform the request, res will get the return code */
-            res = curl_easy_perform(curl);
-            /* Check for errors */
-            if(res != CURLE_OK)
-                syslog(LOG_ERR, "curl_easy_perform() failed: %s\n",
-                    curl_easy_strerror(res));
-        
-            /* always cleanup */
-            curl_easy_cleanup(curl);
-            } else {
-            syslog(LOG_ERR, "Failed to create curl instance by curl_easy_init().");
+            ++ open_status_count;
+            if (open_status_count == 5) {
+                CURL *curl;
+                CURLcode res;
+                curl = curl_easy_init();
+                if(curl) {          
+                    snprintf(url, PATH_MAX, telemetry_endpoint, 0);
+                    curl_easy_setopt(curl, CURLOPT_URL, url);  
+                    /* Perform the request, res will get the return code */
+                    res = curl_easy_perform(curl);
+                    /* Check for errors */
+                    if(res != CURLE_OK)
+                        syslog(LOG_ERR, "curl_easy_perform() failed: %s\n",
+                            curl_easy_strerror(res));
+                
+                    /* always cleanup */
+                    curl_easy_cleanup(curl);
+                } else {
+                    syslog(LOG_ERR, "Failed to create curl instance by curl_easy_init().");
+                }
             }
-        }
         } else {
-        open_status_count = 0;
+            open_status_count = 0;
         }
         sleep(1);
     }
@@ -146,7 +148,6 @@ void* thread_monitor_rack_door() {
             sqlite3_stmt *stmt;
             sqlite3_prepare_v2(db, sql_insert, 512, &stmt, NULL);
             if(stmt != NULL) {
-                
                 time(&now);
                 char buf[sizeof("1970-01-01 00:00:00")];
                 strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", localtime(&now)); 
@@ -156,9 +157,9 @@ void* thread_monitor_rack_door() {
                 sqlite3_step(stmt);
                 rc = sqlite3_finalize(stmt);
                 if (rc != SQLITE_OK) {         
-                syslog(LOG_ERR, "SQL error: %d. INSERT is not successful.\n", rc);
-                sqlite3_close(db);
-                continue;
+                    syslog(LOG_ERR, "SQL error: %d. INSERT is not successful.\n", rc);
+                    sqlite3_close(db);
+                    continue;
                 }
             }
             sqlite3_close(db);
