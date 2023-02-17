@@ -1,4 +1,4 @@
-OPT = -O3 -Wall
+OPTS = -O3 -Wall -pedantic -Wc++-compat -Wextra 
 
 main: rd.out
 
