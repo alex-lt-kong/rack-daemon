@@ -30,6 +30,12 @@ make install
 
 * `OpenCV`: Install following [this link](https://github.com/alex-lt-kong/q-rtsp-viewer#opencv-installation-and-reference).
 
+* Environment variables:
+
+    * `RD_TELEMETRY_ENDPOINT="https://localhost/key=%d"`
+    * `RD_IMAGE_DIR="/bin/rack-daemon/images/"`
+    * `RD_DB_DIR="/bin/rack-daemon/data.sqlite"`
+
 
 ### Front-end
 

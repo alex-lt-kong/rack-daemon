@@ -71,7 +71,9 @@ void* thread_capture_live_image(void*) {
         }
         cap.release();
     }
-    syslog(LOG_INFO, "thread_capture_live_image() quits gracefully\n");
+    char exit_msg[] = "thread_capture_live_image() quits gracefully\n";
+    syslog(LOG_INFO, exit_msg);
+    printf(exit_msg);
     return NULL;
 }
 

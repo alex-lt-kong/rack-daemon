@@ -13,5 +13,16 @@ project(RACK_DAEMON)
 
 add_compile_options(-Wall -Wextra -pedantic -O3)
 
+find_library(CURL_LIB curl)
+if(NOT CURL_LIB)
+  message(FATAL_ERROR "curl library not found, install it with 'apt install libcurl4-gnutls-dev'")
+endif()
+
+find_library(SQLITE3_LIB sqlite3)
+if(NOT SQLITE3_LIB)
+  message(FATAL_ERROR "sqlite3 library not found, install it with 'apt install libsqlite3-dev'")
+endif()
+
+
 
 add_subdirectory(src/back)

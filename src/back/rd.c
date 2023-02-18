@@ -14,7 +14,6 @@
 #include "cam.h"
 #include "7seg.c"
 
-#define DB_PATH_SIZE 5432
 
 struct Payload {
     int32_t temps[4];
@@ -22,7 +21,7 @@ struct Payload {
 };
 
 volatile sig_atomic_t done = 0;
-char db_path[DB_PATH_SIZE];
+char db_path[PATH_MAX];
 
 void signal_handler(int signum) {
     char msg[] = "Signal %d received by signal_handler()\n";
@@ -88,7 +87,9 @@ void* thread_monitor_main_entrance() {
         sleep(1);
     }
     curl_global_cleanup();
-    syslog(LOG_INFO, "thread_monitor_main_entrance() quits gracefully.");
+    char exit_msg[] = "thread_monitor_main_entrance() quits gracefully\n";
+    syslog(LOG_INFO, exit_msg);
+    printf(exit_msg);
     return NULL;
 }
 
@@ -157,7 +158,8 @@ void* thread_monitor_rack_door() {
                 sqlite3_step(stmt);
                 rc = sqlite3_finalize(stmt);
                 if (rc != SQLITE_OK) {         
-                    syslog(LOG_ERR, "SQL error: %d. INSERT is not successful.\n", rc);
+                    syslog(LOG_ERR,
+                        "SQL error: %d. INSERT is not successful.\n", rc);
                     sqlite3_close(db);
                     continue;
                 }
@@ -167,7 +169,10 @@ void* thread_monitor_rack_door() {
             status_count = 0;
         }
     }
-    syslog(LOG_INFO, "thread_monitor_rack_door() quits gracefully.");
+
+    char exit_msg[] = "thread_monitor_rack_door() quits gracefully.\n";
+    syslog(LOG_INFO, exit_msg);
+    printf(exit_msg);
     return NULL;
 }
 
@@ -186,7 +191,8 @@ void* thread_apply_fans_load(void* payload) {
                 "  [fans_load] REAL"
                 ")";
     const char* sql_insert = "INSERT INTO temp_control"
-            "(record_time, external_temp_0, external_temp_1, internal_temp_0, internal_temp_1, fans_load) "
+            "(record_time, external_temp_0, external_temp_1, "
+            "internal_temp_0, internal_temp_1, fans_load) "
             "VALUES(?, ?, ?, ?, ?, ?);";
     char *sqlite_err_msg = 0;
     time_t now;
@@ -197,7 +203,8 @@ void* thread_apply_fans_load(void* payload) {
     
     size_t interval = 3600;
     int32_t iter = interval - 60;
-    // we wait for 10 sec before first DB writing--so that we wont write non-sense default values to DB
+    // we wait for 10 sec before first DB writing--
+    // so that we wont write non-sense default values to DB
     sqlite3 *db;
 
     while (!done) {
@@ -248,14 +255,16 @@ void* thread_apply_fans_load(void* payload) {
             sqlite3_step(stmt);
             rc = sqlite3_finalize(stmt);
             if (rc != SQLITE_OK) {         
-            syslog(LOG_ERR, "SQL error: %d. INSERT is not successful.\n", rc);
-            sqlite3_close(db);
-            continue;
+                syslog(LOG_ERR, "SQL error: %d. INSERT is not successful.\n", rc);
+                sqlite3_close(db);
+                continue;
             }
         }
         sqlite3_close(db);
     }
-    syslog(LOG_INFO, "thread_apply_fans_load() quits gracefully.");
+    char exit_msg[] = "thread_apply_fans_load() quits gracefully.\n";
+    syslog(LOG_INFO, exit_msg);
+    printf(exit_msg);
     return NULL;
 }
 
@@ -277,18 +286,21 @@ void* thread_get_readings_from_sensors(void* payload) {
             // takes around 1 sec to read value from one sensor.
             fd = open(sensors[i], O_RDONLY);
             if(fd >= 0) {
-            if(read( fd, buf, sizeof(buf) ) > 0) {          
-                char* temp_str = strstr(buf, "t=") + 2;
-                sscanf(temp_str, "%d", &(pl->temps[i]));
-            }
-            close(fd);
+                if(read( fd, buf, sizeof(buf) ) > 0) {          
+                    char* temp_str = strstr(buf, "t=") + 2;
+                    sscanf(temp_str, "%d", &(pl->temps[i]));
+                }
+                close(fd);
             } else {
-            syslog(LOG_ERR, "Unable to open device at [%s], skipped this read attempt.", sensors[i]);
+                syslog(LOG_ERR, "Unable to open device at [%s], skipped this "
+                    "read attempt.", sensors[i]);
             }
             sleep(1);
         }
     }
-    syslog(LOG_INFO, "thread_get_readings_from_sensors() quits gracefully.");
+    char exit_msg[] = "thread_get_readings_from_sensors() quits gracefully.\n";
+    syslog(LOG_INFO, exit_msg);
+    printf(exit_msg);
     return NULL;
 }
 
@@ -317,12 +329,13 @@ void* thread_set_7seg_display(void* payload) {
         values[7] = fl % 10;
         show(values, dots);
     }
-    
-    syslog(LOG_INFO, "thread_set_7seg_display() quits gracefully.");
+    char exit_msg[] = "thread_set_7seg_display() quits gracefully.\n";
+    syslog(LOG_INFO, exit_msg);
+    printf(exit_msg);
     return NULL;
 }
 
-int main(int argc, char *argv[]) {
+int main() {
     openlog("rd.out", LOG_PID | LOG_CONS, 0);
     syslog(LOG_INFO, "rd.out started\n");
     pthread_t tids[6];
@@ -332,17 +345,7 @@ int main(int argc, char *argv[]) {
         closelog();
         return 1;
     }
-
-    readlink("/proc/self/exe", db_path, DB_PATH_SIZE);
-    char* db_dir = dirname(db_path); // doc exlicitly says we shouldnt free() it.
-    strncpy(db_path, db_dir, DB_PATH_SIZE - 1);
-    // If the length of src is less than n, strncpy() writes an additional NULL characters to dest to ensure that
-    // a total of n characters are written.
-    // HOWEVER, if there is no null character among the first n character of src, the string placed in dest will
-    // not be null-terminated. So strncpy() does not guarantee that the destination string will be NULL terminated.
-    // Ref: https://www.geeksforgeeks.org/why-strcpy-and-strncpy-are-not-safe-to-use/
-    strncpy(db_path + strnlen(db_path, DB_PATH_SIZE - 30), "/data.sqlite", DB_PATH_SIZE - 1);
-
+    snprintf(db_path, PATH_MAX, "%s", getenv("RD_DB_DIR"));
     struct Payload pl;
     pl.temps[0] = 65535;
     pl.temps[1] = 65535;
@@ -371,12 +374,14 @@ int main(int argc, char *argv[]) {
     sigaction(SIGINT, &act, 0);
     sigaction(SIGABRT, &act, 0);
     sigaction(SIGTERM, &act, 0);
-    for (int i = 0; i < sizeof(tids) / sizeof(tids[0]); ++i) {
+    for (size_t i = 0; i < sizeof(tids) / sizeof(tids[0]); ++i) {
         pthread_join(tids[i], NULL);
     }
     /* Stop DMA, release resources */
     gpioTerminate();
-    syslog(LOG_INFO, "Program quits gracefully.");
+    char exit_msg[] = "main() quits gracefully.\n";
+    syslog(LOG_INFO, exit_msg);
+    printf(exit_msg);
     closelog();
     return 0;
 }
