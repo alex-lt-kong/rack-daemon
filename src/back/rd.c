@@ -10,8 +10,9 @@
 #include <stdio.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <linux/limits.h>
+#include <signal.h>
 
-#include "cam.h"
 #include "7seg.c"
 
 
@@ -28,7 +29,6 @@ void signal_handler(int signum) {
     syslog(LOG_INFO, msg, signum);
     printf(msg, signum);
     done = 1;
-    stop_capture_live_image();
 }
 
 void* thread_monitor_main_entrance() {
@@ -338,7 +338,7 @@ void* thread_set_7seg_display(void* payload) {
 int main() {
     openlog("rd.out", LOG_PID | LOG_CONS, 0);
     syslog(LOG_INFO, "rd.out started\n");
-    pthread_t tids[6];
+    pthread_t tids[5];
 
     if (gpioInitialise() < 0) {
         syslog(LOG_ERR, "pigpio initialisation failed, program will quit\n");
@@ -356,8 +356,7 @@ int main() {
         pthread_create(&tids[1], NULL, thread_apply_fans_load, &pl) != 0 ||
         pthread_create(&tids[2], NULL, thread_monitor_rack_door, NULL) != 0 ||
         pthread_create(&tids[3], NULL, thread_set_7seg_display, &pl) != 0 ||
-        pthread_create(&tids[4], NULL, thread_capture_live_image, NULL) != 0 ||
-        pthread_create(&tids[5], NULL, thread_monitor_main_entrance, NULL) != 0
+        pthread_create(&tids[4], NULL, thread_monitor_main_entrance, NULL) != 0
         
     ) {
         syslog(LOG_ERR, "Failed to create essential threads, program will quit\n");
