@@ -118,10 +118,10 @@ void* thread_monitor_rack_door() {
     gpioWrite(pin_pos, PI_HIGH);
     gpioSetPullUpDown(pin_neg, PI_PUD_UP);
 
-    // 0 -> circuit opened -> door opened
-    // 1 -> circuit closed -> door closed
-    int last_status = 1;
-    int current_status = 1;
+    // false -> circuit opened -> door opened
+    // true -> circuit closed -> door closed
+    bool last_status = true;
+    bool current_status = true;
     size_t status_count = 0;
     while (!done) {
         usleep(1000 * 1000); // i.e., 1sec
