@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <linux/limits.h>
 #include <signal.h>
+#include <errno.h>
 
 #include "7seg.c"
 
@@ -194,8 +195,8 @@ void* thread_apply_fans_load(void* payload) {
                 "  [fans_load] REAL"
                 ")";
     const char* sql_insert = "INSERT INTO temp_control"
-            "(record_time, external_temp_0, external_temp_1, "
-            "internal_temp_0, internal_temp_1, fans_load) "
+            "(record_time, internal_temp_0, internal_temp_1, "
+            "external_temp_0, external_temp_1, fans_load) "
             "VALUES(?, ?, ?, ?, ?, ?);";
     char *sqlite_err_msg = 0;
     time_t now;
@@ -295,8 +296,9 @@ void* thread_get_readings_from_sensors(void* payload) {
                 }
                 close(fd);
             } else {
-                syslog(LOG_ERR, "Unable to open device at [%s], skipped this "
-                    "read attempt.", sensors[i]);
+                syslog(LOG_ERR, "Unable to open device at [%s], errno: %d(%s), "
+                    "skipped this read attempt.",
+                    sensors[i], errno, strerror(errno));
             }
             sleep(1);
         }
@@ -338,9 +340,48 @@ void* thread_set_7seg_display(void* payload) {
     return NULL;
 }
 
+
+void install_signal_handler() {
+    // This design canNOT handle more than 99 signal types
+    if (_NSIG > 99) {
+        fprintf(stderr, "signal_handler() can't handle more than 99 signals\n");
+        abort();
+    }
+    struct sigaction act;
+    // Initialize the signal set to empty, similar to memset(0)
+    if (sigemptyset(&act.sa_mask) == -1) {
+        perror("sigemptyset()");
+        abort();
+    }
+    act.sa_handler = signal_handler;
+    /*
+    * SA_RESETHAND means we want our signal_handler() to intercept the signal
+    once. If a signal is sent twice, the default signal handler will be used
+    again. `man sigaction` describes more possible sa_flags.
+    * In this particular case, we should not enable SA_RESETHAND, mainly
+    due to the issue that if a child process is kill, multiple SIGPIPE will
+    be invoked consecutively, breaking the program.
+    * Without setting SA_RESETHAND, catching SIGSEGV is usually a bad idea.
+    The issue is, if an instruction results in segfault, SIGSEGV handler is
+    called, then the very same instruction will be repeated, triggering
+    segfault again. */
+    // act.sa_flags = SA_RESETHAND;    
+    act.sa_flags = 0;
+    if (sigaction(SIGINT,  &act, 0) + sigaction(SIGABRT, &act, 0) +
+        sigaction(SIGQUIT, &act, 0) + sigaction(SIGTERM, &act, 0) < 0) {
+        
+        /* Could miss some error if more than one sigaction() fails. However,
+        given that the program will quit if one sigaction() fails, this
+        is not considered an issue */
+        perror("sigaction()");
+        abort();
+    }
+}
+
+
 int main(void) {
-    openlog("rd.out", LOG_PID | LOG_CONS, 0);
-    syslog(LOG_INFO, "rd.out started\n");
+    openlog("rd", LOG_PID | LOG_CONS, 0);
+    syslog(LOG_INFO, "rd started\n");
     pthread_t tids[5];
 
     if (gpioInitialise() < 0) {
@@ -348,19 +389,8 @@ int main(void) {
         closelog();
         return 1;
     }
-    struct sigaction act;
-    act.sa_handler = signal_handler;
-    act.sa_flags = 0;
-    if (sigemptyset(&act.sa_mask) == -1) {
-        perror("sigemptyset()");
-        return EXIT_FAILURE;
-    }
-    if (sigaction(SIGINT,  &act, 0) == -1 ||
-        sigaction(SIGABRT, &act, 0) == -1 ||
-        sigaction(SIGTERM, &act, 0) == -1) {
-        perror("sigaction()");
-        return EXIT_FAILURE;
-    }
+    install_signal_handler();
+
     snprintf(db_path, PATH_MAX, "%s", getenv("RD_DB_DIR"));
     struct Payload pl;
     pl.temps[0] = 65535;
@@ -373,7 +403,6 @@ int main(void) {
         pthread_create(&tids[2], NULL, thread_monitor_rack_door, NULL) != 0 ||
         pthread_create(&tids[3], NULL, thread_set_7seg_display, &pl) != 0 ||
         pthread_create(&tids[4], NULL, thread_monitor_main_entrance, NULL) != 0
-
     ) {
         syslog(LOG_ERR, "Failed to create essential threads, program will quit\n");
         done = 1;
