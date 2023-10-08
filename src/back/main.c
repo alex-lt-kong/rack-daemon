@@ -1,4 +1,3 @@
-#include <curl/curl.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
@@ -10,108 +9,47 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/syslog.h>
 #include <syslog.h>
 #include <unistd.h>
 
+#include <curl/curl.h>
+
 #include "7seg.c"
 
+#define BAD_TEMPERATURE 65535
+
 struct Payload {
-  int32_t temps[4];
+  int32_t hi_temps[2];
+  int32_t lo_temps[2];
   float fans_load;
 };
 
-volatile sig_atomic_t done = 0;
+volatile sig_atomic_t ev_flag = 0;
 char db_path[PATH_MAX];
 
 void signal_handler(int signum) {
-  done = 1;
+  ev_flag = 1;
   char msg[] = "Signal [  ] caught\n";
   msg[8] = '0' + signum / 10;
   msg[9] = '0' + signum % 10;
   write(STDERR_FILENO, msg, strlen(msg));
 }
 
-void *thread_monitor_main_entrance() {
-  syslog(LOG_INFO, "thread_monitor_main_entrance() started.");
-  char envvar[] = "RD_TELEMETRY_ENDPOINT";
-  if (!getenv(envvar)) {
-    syslog(LOG_INFO,
-           "The environment variable [%s] was not found, "
-           "thread_report_sensor_readings() quits gracefully.",
-           envvar);
-    return NULL;
-  }
-  char telemetry_endpoint[PATH_MAX];
-  char url[PATH_MAX];
-  if (snprintf(telemetry_endpoint, PATH_MAX, "%s", getenv(envvar)) >=
-      PATH_MAX) {
-    syslog(LOG_INFO,
-           "PATH_MAX too small for %s, "
-           "thread_report_sensor_readings() quits gracefully.",
-           envvar);
-    return NULL;
-  }
-  const int pin_pos = 26;
-  const int pin_neg = 20;
-
-  gpioSetMode(pin_pos, PI_OUTPUT);
-  gpioSetMode(pin_neg, PI_INPUT);
-  gpioWrite(pin_pos, PI_HIGH);
-  gpioSetPullUpDown(pin_neg, PI_PUD_UP);
-
-  int open_status_count = 0;
-
-  curl_global_init(CURL_GLOBAL_DEFAULT);
-  while (!done) {
-    if (gpioRead(pin_neg) == 0) {
-      ++open_status_count;
-      if (open_status_count == 5) {
-        CURL *curl;
-        CURLcode res;
-        curl = curl_easy_init();
-        if (curl) {
-          snprintf(url, PATH_MAX, telemetry_endpoint, 0);
-          curl_easy_setopt(curl, CURLOPT_URL, url);
-          /* Perform the request, res will get the return code */
-          res = curl_easy_perform(curl);
-          /* Check for errors */
-          if (res != CURLE_OK)
-            syslog(LOG_ERR, "curl_easy_perform() failed: %s\n",
-                   curl_easy_strerror(res));
-
-          /* always cleanup */
-          curl_easy_cleanup(curl);
-        } else {
-          syslog(LOG_ERR,
-                 "Failed to create curl instance by curl_easy_init().");
-        }
-      }
-    } else {
-      open_status_count = 0;
-    }
-    sleep(1);
-  }
-  curl_global_cleanup();
-  char exit_msg[] = "thread_monitor_main_entrance() quits gracefully\n";
-  syslog(LOG_INFO, "%s", exit_msg);
-  printf("%s", exit_msg);
-  return NULL;
-}
-
-void *thread_monitor_rack_door() {
-  syslog(LOG_INFO, "thread_monitor_rack_door() started.");
+void *ev_monitor_rack_door() {
+  syslog(LOG_INFO, "ev_monitor_rack_door() started.");
   const int pin_pos = 19;
   const int pin_neg = 16;
 
-  const char *sql_create = "CREATE TABLE IF NOT EXISTS door_state"
-                           "("
-                           "  [record_id] INTEGER PRIMARY KEY AUTOINCREMENT,"
-                           "  [record_time] TEXT,"
-                           "  [door_state] INTEGER"
-                           ")";
-  const char *sql_insert = "INSERT INTO door_state"
-                           "(record_time, door_state) "
-                           "VALUES(?, ?);";
+  const char sql_create[] = "CREATE TABLE IF NOT EXISTS door_state"
+                            "("
+                            "  [record_id] INTEGER PRIMARY KEY AUTOINCREMENT,"
+                            "  [record_time] TEXT,"
+                            "  [door_state] INTEGER"
+                            ")";
+  const char sql_insert[] = "INSERT INTO door_state"
+                            "(record_time, door_state) "
+                            "VALUES(?, ?);";
   char *sqlite_err_msg = 0;
   time_t now;
   sqlite3 *db;
@@ -126,7 +64,7 @@ void *thread_monitor_rack_door() {
   bool last_status = true;
   bool current_status = true;
   size_t status_count = 0;
-  while (!done) {
+  while (!ev_flag) {
     usleep(1000 * 1000); // i.e., 1sec
     current_status = gpioRead(pin_neg);
     if (current_status != last_status) {
@@ -177,13 +115,13 @@ void *thread_monitor_rack_door() {
     }
   }
 
-  syslog(LOG_INFO, "thread_monitor_rack_door() quits gracefully.");
+  syslog(LOG_INFO, "ev_monitor_rack_door() quits gracefully.");
   return NULL;
 }
 
-void *thread_apply_fans_load(void *payload) {
+void *ev_apply_fans_load(void *payload) {
 
-  syslog(LOG_INFO, "thread_apply_fans_load() started.");
+  syslog(LOG_INFO, "ev_apply_fans_load() started.");
   struct Payload *pl = (struct Payload *)payload;
   const char *sql_create = "CREATE TABLE IF NOT EXISTS temp_control"
                            "("
@@ -212,11 +150,23 @@ void *thread_apply_fans_load(void *payload) {
   // so that we wont write non-sense default values to DB
   sqlite3 *db;
 
-  while (!done) {
+  while (!ev_flag) {
     sleep(1);
     iter += 1;
-    int16_t delta =
-        ((pl->temps[0] + pl->temps[1]) - (pl->temps[2] + pl->temps[3])) / 2;
+    int hi_temp = 0, lo_temp = 0;
+    for (size_t i = 0; i < sizeof(pl->hi_temps) / sizeof(pl->hi_temps[0]);
+         ++i) {
+      if (pl->hi_temps[i] != BAD_TEMPERATURE) {
+        hi_temp += pl->hi_temps[i];
+      }
+    }
+    for (size_t i = 0; i < sizeof(pl->lo_temps) / sizeof(pl->lo_temps[0]);
+         ++i) {
+      if (pl->lo_temps[i] != BAD_TEMPERATURE) {
+        lo_temp += pl->lo_temps[i];
+      }
+    }
+    int16_t delta = (hi_temp - lo_temp) / 2;
     pl->fans_load = delta / 1000.0 / 6.0;
     // i.e., delta temp > 6 means 100%
     pl->fans_load = pl->fans_load > 1.0 ? 1.0 : pl->fans_load;
@@ -224,88 +174,111 @@ void *thread_apply_fans_load(void *payload) {
     // printf("fans_load_regulated: %f\n", fans_load);
     if (gpioPWM(fans_pin, pl->fans_load * 254) != 0) {
       syslog(LOG_ERR, "Failed to set new fans load.");
-      continue;
+      goto err_pwm_failure;
     }
     if (iter < interval) {
       continue;
     }
     iter = 0;
 
-    int rc = sqlite3_open(db_path, &db);
-    if (rc != SQLITE_OK) {
-      syslog(LOG_ERR,
-             "Cannot open database [%s]: %s. INSERT will be "
-             "skipped\n",
+    if (sqlite3_open(db_path, &db) != SQLITE_OK) {
+      syslog(LOG_ERR, "Cannot open database [%s]: %s. INSERT will be skipped",
              db_path, sqlite3_errmsg(db));
-      sqlite3_close(db);
-      continue;
+      goto err_sqlite3_open;
     }
-    rc = sqlite3_exec(db, sql_create, 0, 0, &sqlite_err_msg);
-    if (rc != SQLITE_OK) {
+    if (sqlite3_exec(db, sql_create, 0, 0, &sqlite_err_msg) != SQLITE_OK) {
       syslog(LOG_ERR, "SQL error: %s. CREATE is not successful.\n",
              sqlite_err_msg);
-      sqlite3_free(sqlite_err_msg);
-      sqlite3_close(db);
-      continue;
+      (void)sqlite3_free(sqlite_err_msg);
+      goto err_sqlite3_create;
     }
-    sqlite3_stmt *stmt;
-    sqlite3_prepare_v2(db, sql_insert, 512, &stmt, NULL);
-    if (stmt != NULL) {
-      time(&now);
-      char buf[sizeof("1970-01-01 00:00:00")];
-      strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", localtime(&now));
-      sqlite3_bind_text(stmt, 1, buf, -1, NULL);
-      sqlite3_bind_int(stmt, 2, pl->temps[0]);
-      sqlite3_bind_int(stmt, 3, pl->temps[1]);
-      sqlite3_bind_int(stmt, 4, pl->temps[2]);
-      sqlite3_bind_int(stmt, 5, pl->temps[3]);
-      ;
-      sqlite3_bind_double(stmt, 6, pl->fans_load);
-      sqlite3_step(stmt);
-      rc = sqlite3_finalize(stmt);
-      if (rc != SQLITE_OK) {
-        syslog(LOG_ERR, "SQL error: %d. INSERT is not successful.\n", rc);
-        sqlite3_close(db);
-        continue;
-      }
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(db, sql_insert, 512, &stmt, NULL) != SQLITE_OK) {
+      syslog(LOG_ERR, "sqlite3_prepare_v2() error, INSERT will be skipped");
+      goto err_sqlite3_prepare;
     }
-    sqlite3_close(db);
+    // stmt should not be NULL if sqlite3_prepare_v2() returns SQLITE_OK
+
+    time(&now);
+    char buf[sizeof("1970-01-01 00:00:00")];
+    strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", localtime(&now));
+    if (sqlite3_bind_text(stmt, 1, buf, -1, NULL) != SQLITE_OK ||
+        sqlite3_bind_int(stmt, 2, pl->hi_temps[0]) != SQLITE_OK ||
+        sqlite3_bind_int(stmt, 3, pl->hi_temps[1]) != SQLITE_OK ||
+        sqlite3_bind_int(stmt, 4, pl->lo_temps[0]) != SQLITE_OK ||
+        sqlite3_bind_int(stmt, 5, pl->lo_temps[1]) != SQLITE_OK ||
+        sqlite3_bind_double(stmt, 6, pl->fans_load) != SQLITE_OK) {
+      syslog(LOG_ERR, "sqlite3_bind_...() failed. INSERT is not successful.");
+      goto err_sqlite_bind;
+    }
+
+    sqlite3_step(stmt);
+    if (sqlite3_finalize(stmt) != SQLITE_OK) {
+      syslog(LOG_ERR, "sqlite3_finalize() failed. INSERT is not successful.");
+    }
+  err_sqlite_bind:
+  err_sqlite3_prepare:
+  err_sqlite3_finalize:
+  err_sqlite3_create:
+  err_sqlite3_open:
+    // Whether or not an error occurs when it is opened, resources associated
+    // with the database connection handle should be released by passing it to
+    // sqlite3_close() when it is no longer required.
+    if (sqlite3_close(db) != SQLITE_OK) {
+      syslog(LOG_ERR, "sqlite3_close() failed.");
+    }
+  err_pwm_failure:
+    continue;
   }
-  syslog(LOG_INFO, "thread_apply_fans_load() quits gracefully.");
+  syslog(LOG_INFO, "ev_apply_fans_load() quits gracefully.");
   return NULL;
 }
 
-void *thread_get_readings_from_sensors(void *payload) {
-  syslog(LOG_INFO, "thread_get_readings_from_sensors() started.");
-  struct Payload *pl = (struct Payload *)payload;
-
-  char sensors[4][256] = {"/sys/bus/w1/devices/28-0301a279faf2/w1_slave",
-                          "/sys/bus/w1/devices/28-030997792b61/w1_slave",
-                          "/sys/bus/w1/devices/28-01144ebe52aa/w1_slave",
-                          "/sys/bus/w1/devices/28-01144ef1faaa/w1_slave"};
-  char buf[256];
+void save_temp_to_payload(char sensors[][PATH_MAX], const size_t sensor_count,
+                          int32_t *temps) {
+  char buf[PATH_MAX];
   int fd;
-
-  while (!done) {
-    for (int i = 0; i < 4 && !done; ++i) {
-      // takes around 1 sec to read value from one sensor.
-      fd = open(sensors[i], O_RDONLY);
-      if (fd >= 0) {
-        if (read(fd, buf, sizeof(buf)) > 0) {
-          char *temp_str = strstr(buf, "t=") + 2;
-          sscanf(temp_str, "%d", &(pl->temps[i]));
-        }
-        close(fd);
-      } else {
-        syslog(LOG_ERR,
-               "Unable to open device at [%s], errno: %d(%s), "
-               "skipped this read attempt.",
-               sensors[i], errno, strerror(errno));
+  for (size_t i = 0; i < sensor_count && !ev_flag; ++i) {
+    sleep(1);
+    // takes around 1 sec to read value from one sensor.
+    fd = open(sensors[i], O_RDONLY);
+    if (fd >= 0) {
+      if (read(fd, buf, sizeof(buf)) > 0) {
+        char *temp_str = strstr(buf, "t=") + 2;
+        sscanf(temp_str, "%d", &(temps[i]));
       }
-      sleep(1);
+      close(fd);
+    } else {
+      syslog(LOG_ERR,
+             "Unable to open device at [%s], errno: %d(%s), skipped this "
+             "read attempt.",
+             sensors[i], errno, strerror(errno));
     }
+    sleep(1);
   }
-  syslog(LOG_INFO, "thread_get_readings_from_sensors() quits gracefully.");
+}
+
+void *ev_get_temp_from_sensors(void *payload) {
+  syslog(LOG_INFO, "ev_get_temp_from_sensors() started.");
+  struct Payload *pl = (struct Payload *)payload;
+  char int_sensors[][PATH_MAX] = {
+      "/sys/bus/w1/devices/28-0301a279faf2/w1_slave",
+      "/sys/bus/w1/devices/28-030997792b61/w1_slave",
+  };
+
+  char ext_sensors[][PATH_MAX] = {
+      "/sys/bus/w1/devices/28-01144ebe52aa/w1_slave",
+      "/sys/bus/w1/devices/28-01144ef1faaa/w1_slave"};
+
+  while (!ev_flag) {
+    save_temp_to_payload(int_sensors,
+                         sizeof(int_sensors) / sizeof(int_sensors[0]),
+                         pl->hi_temps);
+    save_temp_to_payload(ext_sensors,
+                         sizeof(ext_sensors) / sizeof(ext_sensors[0]),
+                         pl->lo_temps);
+  }
+  syslog(LOG_INFO, "ev_get_temp_from_sensors() quits gracefully.");
   return NULL;
 }
 
@@ -317,14 +290,16 @@ void *thread_set_7seg_display(void *payload) {
   bool dots[DIGIT_COUNT] = {0, 0, 1, 0, 0, 0, 1, 0};
   int32_t internal_temp;
 
-  while (!done) {
-    internal_temp = (pl->temps[0] + pl->temps[1]) / 2;
+  while (!ev_flag) {
+
+    internal_temp = (pl->hi_temps[0] + pl->hi_temps[1]) / 2;
+    uint16_t fl = pl->fans_load * 1000;
+
     values[0] = 10; // means turning the digit off
     values[1] = internal_temp % 100000 / 10000;
     values[2] = internal_temp % 10000 / 1000;
     values[3] = internal_temp % 1000 / 100;
 
-    uint16_t fl = pl->fans_load * 1000;
     values[4] = fl % 10000 / 1000;
     if (values[4] == 0) {
       values[4] = 10; // means turning the digit off
@@ -397,24 +372,23 @@ int main(void) {
 
   snprintf(db_path, PATH_MAX, "%s", getenv("RD_DB_DIR"));
   struct Payload pl;
-  pl.temps[0] = 65535;
-  pl.temps[1] = 65535;
-  pl.temps[2] = 65535;
-  pl.temps[3] = 65535;
-  if (pthread_create(&tids[0], NULL, thread_get_readings_from_sensors, &pl) !=
-          0 ||
-      pthread_create(&tids[1], NULL, thread_apply_fans_load, &pl) != 0 ||
-      pthread_create(&tids[2], NULL, thread_monitor_rack_door, NULL) != 0 ||
-      pthread_create(&tids[3], NULL, thread_set_7seg_display, &pl) != 0 ||
-      pthread_create(&tids[4], NULL, thread_monitor_main_entrance, NULL) != 0) {
+  pl.hi_temps[0] = BAD_TEMPERATURE;
+  pl.hi_temps[1] = BAD_TEMPERATURE;
+  pl.lo_temps[0] = BAD_TEMPERATURE;
+  pl.lo_temps[1] = BAD_TEMPERATURE;
+  if (pthread_create(&tids[0], NULL, ev_get_temp_from_sensors, &pl) != 0 ||
+      pthread_create(&tids[1], NULL, ev_apply_fans_load, &pl) != 0 ||
+      pthread_create(&tids[2], NULL, ev_monitor_rack_door, NULL) != 0 ||
+      pthread_create(&tids[3], NULL, thread_set_7seg_display, &pl) != 0) {
     syslog(LOG_ERR, "Failed to create essential threads, program will quit");
-    done = 1;
+    ev_flag = 1;
     retval = -1;
     goto err_pthread_create;
   }
   for (size_t i = 0; i < sizeof(tids) / sizeof(tids[0]); ++i) {
     pthread_join(tids[i], NULL);
   }
+
 err_pthread_create:
   /* Stop DMA, release resources */
   gpioTerminate();

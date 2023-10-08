@@ -29,7 +29,8 @@ make install
 
 * Add path to `LD_LIBRARY_PATH`: `export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/:/usr/local/lib/aarch64-linux-gnu/`.
 
-* `OpenCV`: Install following [this link](https://github.com/alex-lt-kong/q-rtsp-viewer#opencv-installation-and-reference).
+* `OpenCV`: Install following
+[this link](https://github.com/alex-lt-kong/camera-server/blob/main/helper/build-notes.md).
 
 * Environment variables:
 
