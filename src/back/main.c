@@ -23,7 +23,7 @@
 
 struct Payload {
   /* The program relies on glibc's implicit guarantee to achieve "lock-free"
-   * issue:
+   * design goal:
    * https://www.gnu.org/software/libc/manual/html_node/Atomic-Types.html.
    * As a result, all members of Payload have to be either char or int;
    * otherwise, we may need to use mutex to aovid data corruption*/
