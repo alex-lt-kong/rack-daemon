@@ -43,39 +43,44 @@ class TempsAndFans extends React.Component {
   }
 
   render() {
+    function getTempString(value) {
+      console.log(value);
+      const BAD_TEMP = 65535;
+      const rawReadings = value.split(',').map((ele) => Number(ele));
+      let readings = '';
+      for (let i = 0; i < rawReadings.length; ++i) {
+        if (rawReadings[i] != BAD_TEMP) {
+          readings += `${Math.round(rawReadings[i] / 1000 * 10) / 10}°C`;
+        } else {
+          readings += `<Offline>`;
+        }
+        if (i < rawReadings.length - 1) {
+          readings += ', ';
+        }
+      }
+      return readings;
+    }
     const columns = [
       {
         name: 'record_time',
         label: 'Timestamp'
       }, {
-        name: 'external_temp_0',
-        label: 'External0',
+        name: 'external_temps',
+        label: 'External sensors reading',
         options: {
-          customBodyRender: (value, tableMeta, updateValue) => `${Math.round(value / 1000 * 10) / 10}°C`
+          customBodyRender: (value, tableMeta, updateValue) => getTempString(value)
         }
       }, {
-        name: 'external_temp_1',
-        label: 'External1',
+        name: 'internal_temps',
+        label: 'Internal sensors reading',
         options: {
-          customBodyRender: (value, tableMeta, updateValue) => `${Math.round(value / 1000 * 10) / 10}°C`
-        }
-      }, {
-        name: 'internal_temp_0',
-        label: 'Internal0',
-        options: {
-          customBodyRender: (value, tableMeta, updateValue) => `${Math.round(value / 1000 * 10) / 10}°C`
-        }
-      }, {
-        name: 'internal_temp_1',
-        label: 'Internal1',
-        options: {
-          customBodyRender: (value, tableMeta, updateValue) => `${Math.round(value / 1000 * 10) / 10}°C`
+          customBodyRender: (value, tableMeta, updateValue) => getTempString(value)
         }
       }, {
         name: 'fans_load',
         label: 'Fans Load',
         options: {
-          customBodyRender: (value, tableMeta, updateValue) => `${Math.round(value * 100 * 10) / 10}%`
+          customBodyRender: (value, tableMeta, updateValue) => `${value}%`
         }
       }
     ];
