@@ -1,3 +1,11 @@
+#include "7seg.c"
+#include "http_service/HttpService.h"
+#include "utils.h"
+
+#include <cjson/cJSON.h>
+#include <pigpio.h>
+#include <sqlite3.h>
+
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -12,31 +20,9 @@
 #include <syslog.h>
 #include <unistd.h>
 
-#include <curl/curl.h>
-#include <pigpio.h>
-#include <sqlite3.h>
-
-#include "7seg.c"
-
 #define BAD_TEMPERATURE 65535
-#define MAX_SENSORS 16
 
-struct Payload {
-  /* The program relies on glibc's implicit guarantee to achieve "lock-free"
-   * design goal:
-   * https://www.gnu.org/software/libc/manual/html_node/Atomic-Types.html.
-   * As a result, all members of Payload have to be either char or int;
-   * otherwise, we may need to use mutex to aovid data corruption*/
-  int32_t int_temps[MAX_SENSORS];
-  int32_t ext_temps[MAX_SENSORS];
-  int32_t int_temp;
-  int32_t ext_temp;
-  char *int_sensors[MAX_SENSORS];
-  char *ext_sensors[MAX_SENSORS];
-  size_t num_ext_sensors;
-  size_t num_int_sensors;
-  int32_t fans_load;
-} pl;
+struct Payload pl;
 
 volatile sig_atomic_t ev_flag = 0;
 char db_path[PATH_MAX];
@@ -54,67 +40,93 @@ void print_usage(const char *binary_name) {
   printf("Usage: %s [OPTION]\n\n", binary_name);
 
   printf("Options:\n"
-         "  --help,            -h        Display this help and exit\n"
-         "  --ext-sensor-path, -e        Path of external sensor device, "
-         "repeat the argument to read from multiple devices\n"
-         "  --int-sensor-path, -i        Path of internal sensor device, "
-         "repeat the argument to read from multiple devices\n");
+         "  --help,        -h        Display this help and exit\n"
+         "  --config-path, -c        Path of JSON format configuration file\n");
 }
 
-void parse_args(int argc, char *argv[]) {
+void load_sensors(const cJSON *json) {
+  for (size_t i = 0; i < pl.num_int_sensors; ++i) {
+    pl.int_temps[i] = BAD_TEMPERATURE;
+  }
+  for (size_t i = 0; i < pl.num_ext_sensors; ++i) {
+    pl.ext_temps[i] = BAD_TEMPERATURE;
+  }
+  cJSON *s;
+  syslog(LOG_INFO, "Loading external sensors:");
+  cJSON_ArrayForEach(
+      s, cJSON_GetObjectItemCaseSensitive(json, "external_sensors")) {
+    if (cJSON_IsString(s)) {
+      pl.ext_sensor_paths[pl.num_ext_sensors] = strdup(s->valuestring);
+      syslog(LOG_INFO, "%s", pl.ext_sensor_paths[pl.num_ext_sensors]);
+      ++pl.num_ext_sensors;
+      if (pl.num_ext_sensors >= MAX_SENSORS) {
+        fprintf(stderr, "Program supports up to %d external sensors only",
+                MAX_SENSORS);
+        abort();
+      }
+    }
+  }
+  syslog(LOG_INFO, "%lu external sensors loaded", pl.num_int_sensors);
+
+  syslog(LOG_INFO, "Loading internal sensors");
+  cJSON_ArrayForEach(
+      s, cJSON_GetObjectItemCaseSensitive(json, "internal_sensors")) {
+    if (cJSON_IsString(s)) {
+      pl.int_sensor_paths[pl.num_int_sensors] = strdup(s->valuestring);
+      syslog(LOG_INFO, "%s", pl.int_sensor_paths[pl.num_int_sensors]);
+      ++pl.num_int_sensors;
+      if (pl.num_int_sensors >= MAX_SENSORS) {
+        fprintf(stderr, "Program supports up to %d external sensors only",
+                MAX_SENSORS);
+        abort();
+      }
+    }
+  }
+  syslog(LOG_INFO, "%lu internal sensors loaded", pl.num_int_sensors);
+}
+
+const char *parse_args(int argc, char *argv[]) {
   static struct option long_options[] = {
-      {"ext-sensor-path", required_argument, 0, 'e'},
-      {"int-sensor-path", required_argument, 0, 'i'},
+      {"config-path", required_argument, 0, 'c'},
       {"help", optional_argument, 0, 'h'},
       {0, 0, 0, 0}};
   int opt, option_idx = 0;
-  pl.num_ext_sensors = 0;
-  pl.num_int_sensors = 0;
-  // Parse the options using getopt
-  while ((opt = getopt_long(argc, argv, "e:i:h", long_options, &option_idx)) !=
+  while ((opt = getopt_long(argc, argv, "c:h", long_options, &option_idx)) !=
          -1) {
     switch (opt) {
-    case 'e':
-      if (pl.num_ext_sensors >= MAX_SENSORS) {
-        fprintf(stderr, "Support up to %d external sensors\n", MAX_SENSORS);
-        abort();
-      }
-      pl.ext_sensors[pl.num_ext_sensors] = strdup(optarg);
-      if (pl.ext_sensors[pl.num_ext_sensors] == NULL) {
-        fprintf(stderr, "Memory allocation failed\n");
-        abort();
-      }
-      ++pl.num_ext_sensors;
-      break;
-    case 'i':
-      if (pl.num_int_sensors >= MAX_SENSORS) {
-        fprintf(stderr, "Support up to %d internal sensors\n", MAX_SENSORS);
-        abort();
-      }
-      pl.int_sensors[pl.num_int_sensors] = strdup(optarg);
-      if (pl.int_sensors[pl.num_int_sensors] == NULL) {
-        fprintf(stderr, "Memory allocation failed\n");
-        abort();
-      }
-      ++pl.num_int_sensors;
-      break;
-    case 'h':
-      print_usage(argv[0]);
-      abort();
+    case 'c':
+      return strdup(optarg);
     }
   }
-  if (pl.num_int_sensors == 0 || pl.num_ext_sensors == 0) {
-    print_usage(argv[0]);
-    abort();
+  print_usage(argv[0]);
+  _exit(1);
+}
+
+cJSON *read_config_file(const char *config_path) {
+  FILE *fp = fopen(config_path, "r");
+  if (fp == NULL) {
+    fprintf(stderr, "Error: Unable to open the file [%s]\n", config_path);
+    _exit(1);
   }
-  syslog(LOG_INFO, "External sensors:");
-  for (size_t i = 0; i < pl.num_ext_sensors; ++i) {
-    syslog(LOG_INFO, "%s", pl.ext_sensors[i]);
+  fseek(fp, 0, SEEK_END);
+  size_t fsize = ftell(fp);
+  fseek(fp, 0, SEEK_SET);
+
+  char *json_buf = malloc(fsize + 1);
+  if (json_buf == NULL) {
+    fprintf(stderr, "Error: Unable to open malloc() memory for file [%s]\n",
+            config_path);
+    _exit(1);
   }
-  syslog(LOG_INFO, "Internal sensors:");
-  for (size_t i = 0; i < pl.num_int_sensors; ++i) {
-    syslog(LOG_INFO, "%s", pl.int_sensors[i]);
+  fread(json_buf, fsize, 1, fp);
+  fclose(fp);
+  cJSON *json = cJSON_Parse(json_buf);
+  if (json == NULL) {
+    fprintf(stderr, "Error: Unable to parse [%s] as JSON file\n", config_path);
+    _exit(1);
   }
+  syslog(LOG_INFO, "Content of [%s]:\n%s", config_path, cJSON_Print(json));
+  return json;
 }
 
 int prepare_database() {
@@ -183,6 +195,7 @@ void *ev_monitor_rack_door() {
   bool current_status = true;
   size_t status_count = 0;
   while (!ev_flag) {
+    int res;
     usleep(1000 * 1000); // i.e., 1sec
     current_status = gpioRead(pin_neg);
     if (current_status != last_status) {
@@ -215,8 +228,8 @@ void *ev_monitor_rack_door() {
                sqlite3_errmsg(db));
         goto err_sqlite3_bind;
       }
-      if (sqlite3_step(stmt) != SQLITE_OK) {
-        syslog(LOG_ERR, "sqlite3_step() failed: %s. INSERT skipped",
+      if ((res = sqlite3_step(stmt)) != SQLITE_OK) {
+        syslog(LOG_ERR, "sqlite3_step() failed: %d(%s). INSERT skipped", res,
                sqlite3_errmsg(db));
       }
     err_sqlite3_bind:
@@ -263,6 +276,7 @@ void save_data_to_db() {
       "(record_time, external_temps, internal_temps, fans_load) "
       "VALUES(?, ?, ?, ?);";
   time_t now;
+  int res;
   sqlite3 *db;
   char ext_temps[pl.num_ext_sensors * 6];
   char int_temps[pl.num_ext_sensors * 6];
@@ -297,8 +311,9 @@ void save_data_to_db() {
     goto err_sqlite_bind;
   }
   // sqlite3_step() "evaluates an SQL statement"
-  if (sqlite3_step(stmt) != SQLITE_OK) {
-    syslog(LOG_ERR, "sqlite3_step() failed. INSERT skipped");
+  if ((res = sqlite3_step(stmt)) != SQLITE_OK) {
+    syslog(LOG_ERR, "sqlite3_step() failed: %d(%s). INSERT skipped", res,
+           sqlite3_errmsg(db));
   }
 err_temps_str:
 err_sqlite_bind:
@@ -390,9 +405,9 @@ void *ev_get_temp_from_sensors() {
   syslog(LOG_INFO, "ev_get_temp_from_sensors() started.");
 
   while (!ev_flag) {
-    save_temp_to_payload(pl.int_sensors, pl.num_int_sensors, pl.int_temps,
+    save_temp_to_payload(pl.int_sensor_paths, pl.num_int_sensors, pl.int_temps,
                          &pl.int_temp);
-    save_temp_to_payload(pl.ext_sensors, pl.num_ext_sensors, pl.ext_temps,
+    save_temp_to_payload(pl.ext_sensor_paths, pl.num_ext_sensors, pl.ext_temps,
                          &pl.ext_temp);
   }
   syslog(LOG_INFO, "ev_get_temp_from_sensors() quits gracefully.");
@@ -470,22 +485,12 @@ int install_signal_handler() {
   return 0;
 }
 
-void init_payload() {
-  for (size_t i = 0; i < pl.num_int_sensors; ++i) {
-    pl.int_temps[i] = BAD_TEMPERATURE;
-  }
-  for (size_t i = 0; i < pl.num_ext_sensors; ++i) {
-    pl.ext_temps[i] = BAD_TEMPERATURE;
-  }
-}
-
 int main(int argc, char *argv[]) {
   int retval = 0;
+  pthread_t tids[5] = {0};
+  cJSON *json = read_config_file(parse_args(argc, argv));
   (void)openlog("rd", LOG_PID | LOG_CONS, 0);
   syslog(LOG_INFO, "rd started\n");
-  pthread_t tids[5] = {0};
-  parse_args(argc, argv);
-  init_payload();
   if (prepare_database() != 0) {
     retval = -1;
     goto err_prepare_database;
@@ -501,6 +506,23 @@ int main(int argc, char *argv[]) {
     goto err_install_signal_handler;
   }
 
+  const cJSON *http_service =
+      cJSON_GetObjectItemCaseSensitive(json, "http_service");
+  if (http_service == NULL ||
+      !cJSON_IsString(cJSON_GetObjectItemCaseSensitive(http_service, "host")) ||
+      !cJSON_IsNumber(cJSON_GetObjectItemCaseSensitive(http_service, "port")) ||
+      !cJSON_IsString(
+          cJSON_GetObjectItemCaseSensitive(http_service, "advertised_addr"))) {
+    syslog(LOG_ERR, "Malformed JSON config file");
+    retval = -1;
+    goto err_invalid_http_service_config;
+  }
+  initialize_http_service(
+      cJSON_GetObjectItemCaseSensitive(http_service, "host")->valuestring,
+      cJSON_GetObjectItemCaseSensitive(http_service, "port")->valueint,
+      cJSON_GetObjectItemCaseSensitive(http_service, "advertised_addr")
+          ->valuestring);
+  load_sensors(json);
   if (pthread_create(&tids[0], NULL, ev_get_temp_from_sensors, NULL) != 0 ||
       pthread_create(&tids[1], NULL, ev_apply_fans_load, NULL) != 0 ||
       pthread_create(&tids[2], NULL, ev_monitor_rack_door, NULL) != 0 ||
@@ -508,13 +530,19 @@ int main(int argc, char *argv[]) {
     syslog(LOG_ERR, "Failed to create essential threads, program will quit");
     ev_flag = 1;
     retval = -1;
-    goto err_pthread_create;
+    // We don't use goto to skip pthread_join() here and we set ev_flag to 1
+    // only--if some of pthread_create()s are successful and some of them
+    // failed, pthread_join() will return error on these failed threadss, but
+    // this won't harm. On the other hand, if we just skip pthread_join(), some
+    // successfully pthread_create()ed threads will be left neither
+    // pthread_join()ed nor pthread_detach()ed, which is not POSIX-compliant and
+    // leaks resources
   }
   for (size_t i = 0; i < sizeof(tids) / sizeof(tids[0]); ++i) {
     pthread_join(tids[i], NULL);
   }
-
-err_pthread_create:
+  finalize_http_service();
+err_invalid_http_service_config:
   /* Stop DMA, release resources */
   gpioTerminate();
   syslog(LOG_INFO, "main() quits gracefully.");
@@ -522,5 +550,6 @@ err_install_signal_handler:
 err_gpioInitialise:
 err_prepare_database:
   closelog();
+  cJSON_Delete(json);
   return retval;
 }

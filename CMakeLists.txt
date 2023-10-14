@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION 3.18.4)
 
+project(RACK_DAEMON)
+add_definitions(-DPROJECT_NAME="${PROJECT_NAME}")
+
+# Always generate compile_commands.json for clangd, etc.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_C_STANDARD 17)
+
+
 set(CMAKE_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
@@ -41,21 +50,16 @@ else()
 endif()
 
 
+add_compile_options(-Wall)
+add_compile_options(-Wextra)
+add_compile_options(-pedantic)
+add_compile_options(-O3)
 
-project(RACK_DAEMON)
-
-add_compile_options(-Wall -Wextra -pedantic -O3)
-
-find_library(CURL_LIB curl)
-if(NOT CURL_LIB)
-  message(FATAL_ERROR "curl library not found, install it with 'apt install libcurl4-gnutls-dev'")
-endif()
 
 find_library(SQLITE3_LIB sqlite3)
 if(NOT SQLITE3_LIB)
   message(FATAL_ERROR "sqlite3 library not found, install it with 'apt install libsqlite3-dev'")
 endif()
-
-
+find_package(cJSON REQUIRED)
 
 add_subdirectory(src/back)

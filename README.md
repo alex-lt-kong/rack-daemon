@@ -14,7 +14,7 @@ A tool intended to run on embedded systems to:
 ### Back-end
 
 * Common libs: `apt install libsqlite3-dev`
-* `cURL`: `apt-get install libcurl4-gnutls-dev`
+* `cJSON` for JSON support: `apt install libcjson-dev`
 
 * `Pigpio`: used to manipulate GPIO pins.
 ```
@@ -38,6 +38,26 @@ make install
     * `RD_IMAGE_DIR="/bin/rack-daemon/images/"`
     * `RD_DB_DIR="/bin/rack-daemon/data.sqlite"`
 
+#### `Swagger`
+
+* Build Oatpp:
+```Bash
+git clone https://github.com/oatpp/oatpp.git
+cd oatpp && mkdir build && cd build
+cmake ../ -DCMAKE_BUILD_TYPE=Release
+make -j4
+make test
+sudo make install
+```
+
+* Build oatpp-swagger:
+```Bash
+git clone https://github.com/oatpp/oatpp-swagger.git
+cd oatpp-swagger && mkdir build && cd build
+cmake ../
+make -j4
+sudo make install
+```
 
 ### Front-end
 
