@@ -1,13 +1,11 @@
 // This is a brute-force translation of
 // https://github.com/shrikantpatnaik/Pi7SegPy/blob/master/Pi7SegPy.py
 
-#include <pigpio.h>
-#include <stdbool.h>
-#include <stdint.h>
+#include "7seg_display.h"
+
 #include <stdio.h>
 #include <unistd.h>
 
-#define DIGIT_COUNT 8
 const int data = 17;
 const int clk = 11;
 const int latch = 18;

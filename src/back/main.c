@@ -1,7 +1,9 @@
-#include "7seg.c"
+#include "7seg_display.h"
+#include "database.h"
 #include "event_loops.h"
-#include "http_service.h"
-#include "utils.h"
+#include "global_vars.h"
+#include "http_service_application.h"
+#include "http_service_webapi.h"
 
 #include <cjson/cJSON.h>
 #include <pigpio.h>
@@ -63,7 +65,7 @@ void load_sensors(const cJSON *json) {
       }
     }
   }
-  syslog(LOG_INFO, "%lu external sensors loaded", pl.num_int_sensors);
+  syslog(LOG_INFO, "%lu external sensors loaded", pl.num_ext_sensors);
 
   syslog(LOG_INFO, "Loading internal sensors");
   cJSON_ArrayForEach(
@@ -124,25 +126,6 @@ cJSON *read_config_file(const char *config_path) {
   }
   syslog(LOG_INFO, "Content of [%s]:\n%s", config_path, cJSON_Print(json));
   return json;
-}
-
-int write_int_arr_to_cstr(const size_t arr_size, const int32_t *arr,
-                          char *dest_str) {
-  int offset = 0;
-  for (size_t i = 0; i < arr_size; ++i) {
-    int written = sprintf(dest_str + offset, "%d,", arr[i]);
-    if (written < 0) {
-      syslog(LOG_ERR,
-             "Error converting integer to string, current c-string is: %s",
-             dest_str);
-      return -1;
-    }
-    offset += written;
-  }
-  if (strlen(dest_str) > 0) {
-    dest_str[strlen(dest_str) - 1] = '\0';
-  }
-  return 0;
 }
 
 void save_temp_to_payload(char *sensors[], const size_t sensor_count,

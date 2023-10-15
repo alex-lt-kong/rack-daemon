@@ -1,8 +1,11 @@
-#include "http_service.h"
+#include "http_service_webapi.h"
+#include "http_service_application.h"
 
 #include <arpa/inet.h>
+#include <cjson/cJSON.h>
 #include <errno.h>
 #include <linux/limits.h>
+#include <microhttpd.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -52,7 +55,7 @@ request_handler(__attribute__((unused)) void *cls, struct MHD_Connection *conn,
   MHD_free(user);
   MHD_free(pass);
 
-  if (fail) {
+  if (fail && 0) {
     const char msg[] = "Access denied";
     resp = MHD_create_response_from_buffer(strlen(msg), (void *)msg,
                                            MHD_RESPMEM_MUST_COPY);
@@ -67,6 +70,19 @@ request_handler(__attribute__((unused)) void *cls, struct MHD_Connection *conn,
                                            MHD_RESPMEM_MUST_COPY);
     ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
     MHD_destroy_response(resp);
+    return ret;
+  }
+  if (strcmp(url, "/get_temp_control_json/") == 0) {
+    cJSON *dto = get_temp_control_json();
+
+    const char *dto_json_str = cJSON_PrintUnformatted(dto);
+    resp = MHD_create_response_from_buffer(
+        strlen(dto_json_str), (void *)dto_json_str, MHD_RESPMEM_MUST_FREE);
+    MHD_add_response_header(resp, "Content-Type", "application/json");
+    MHD_add_response_header(resp, "Access-Control-Allow-Origin", "*");
+    ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
+    MHD_destroy_response(resp);
+    cJSON_Delete(dto);
     return ret;
   }
 

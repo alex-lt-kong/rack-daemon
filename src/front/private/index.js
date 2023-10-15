@@ -25,10 +25,10 @@ class TempsAndFans extends React.Component {
   }
 
   componentDidMount() {
-    axios.get('../get_temp_control_json/')
+    axios.get('https://rpi-rack.sz.lan:4443/get_temp_control_json/')
         .then((response) => {
           this.setState({
-            readings: response.data.data
+            readings: [response.data]
           }, ()=>{
             console.log(this.state.readings);
           });

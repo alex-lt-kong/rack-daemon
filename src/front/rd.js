@@ -4,6 +4,7 @@ const app = express();
 const configs = require('./configs.js').configs;
 const fs = require('fs');
 const https = require('https');
+const cors = require('cors');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 const basicAuth = require('express-basic-auth');
@@ -27,6 +28,11 @@ app.use(basicAuth({
   users: configs.users,
   challenge: true // <--- needed to actually show the login dialog!
 }));
+
+app.use(cors({
+  origin: 'https://rpi-rack.sz.lan:4443'
+}));
+
 app.use('/', express.static(path.join(__dirname, 'public/')));
 
 app.get('/get_logged_in_user/', (req, res, next) => {
@@ -35,7 +41,7 @@ app.get('/get_logged_in_user/', (req, res, next) => {
     'data': req.auth.user
   });
 });
-
+/*
 app.get('/get_temp_control_json/', (req, res, next) => {
   const db = new sqlite3.Database(databasePath, (err) => {
     if (err) {
@@ -64,7 +70,7 @@ app.get('/get_temp_control_json/', (req, res, next) => {
   });
   db.close();
 });
-
+*/
 app.get('/get_rack_door_states_json/', (req, res, next) => {
   const db = new sqlite3.Database(databasePath, (err) => {
     if (err) {

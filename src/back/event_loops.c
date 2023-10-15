@@ -1,7 +1,7 @@
 #include "event_loops.h"
-#include "7seg.c"
+#include "7seg_display.h"
 #include "database.h"
-#include "utils.h"
+#include "global_vars.h"
 
 #include <sqlite3.h>
 #include <sys/syslog.h>

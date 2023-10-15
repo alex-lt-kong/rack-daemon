@@ -1,4 +1,5 @@
 #include "database.h"
+#include "global_vars.h"
 #include "utils.h"
 
 #include <linux/limits.h>
@@ -82,9 +83,11 @@ void save_data_to_db() {
   char buf[sizeof("1970-01-01 00:00:00")];
   strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", localtime(&now));
 
-  if (write_int_arr_to_cstr(pl.num_ext_sensors, pl.ext_temps, ext_temps) != 0 ||
-      write_int_arr_to_cstr(pl.num_int_sensors, pl.int_temps, int_temps) != 0) {
-    syslog(LOG_ERR, "write_int_arr_to_cstr() failed. INSERT skipped");
+  if (concat_int_arr_to_cstr(pl.num_ext_sensors, pl.ext_temps, ext_temps) !=
+          0 ||
+      concat_int_arr_to_cstr(pl.num_int_sensors, pl.int_temps, int_temps) !=
+          0) {
+    syslog(LOG_ERR, "concat_int_arr_to_cstr() failed. INSERT skipped");
     goto err_temps_str;
   }
 

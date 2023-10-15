@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-int prepare_database(const char *db_path);
+int prepare_database();
 void save_data_to_db();
 void save_rack_door_state_to_db(bool current_status);
 
