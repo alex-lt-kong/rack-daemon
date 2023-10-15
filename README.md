@@ -6,7 +6,7 @@ A tool intended to run on embedded systems to:
 1. Control two Sunon cooling fans based on ambient and cabinet temperature readings with a IRF520 MOS Driver Module;
 1. Detect cabinet door opening with a reed switch (a.k.a. door sensor);
 1. Read from an USB IPCam and show real-time image (depends on
-[camer-server](https://github.com/alex-lt-kong/camera-server));
+[camera-server](https://github.com/alex-lt-kong/camera-server));
 1. A front-end single-page application to demonstrate all these.
 
 ## Environment and dependency
@@ -15,8 +15,9 @@ A tool intended to run on embedded systems to:
 
 * Common libs: `apt install libsqlite3-dev`
 * `cJSON` for JSON support: `apt install libcjson-dev`
-
+* `libmicrohttpd` for HTTP support: `apt install libmicrohttpd-dev`
 * `Pigpio`: used to manipulate GPIO pins.
+
 ```
 git clone https://github.com/joan2937/pigpio
 cd ./pigpio
@@ -34,30 +35,7 @@ make install
 
 * Environment variables:
 
-    * `RD_TELEMETRY_ENDPOINT="https://localhost/key=%d"`
-    * `RD_IMAGE_DIR="/bin/rack-daemon/images/"`
     * `RD_DB_DIR="/bin/rack-daemon/data.sqlite"`
-
-#### `Swagger`
-
-* Build Oatpp:
-```Bash
-git clone https://github.com/oatpp/oatpp.git
-cd oatpp && mkdir build && cd build
-cmake ../ -DCMAKE_BUILD_TYPE=Release
-make -j4
-make test
-sudo make install
-```
-
-* Build oatpp-swagger:
-```Bash
-git clone https://github.com/oatpp/oatpp-swagger.git
-cd oatpp-swagger && mkdir build && cd build
-cmake ../
-make -j4
-sudo make install
-```
 
 ### Front-end
 

@@ -1,10 +1,10 @@
 #include "7seg.c"
-#include "http_service/HttpService.h"
+#include "event_loops.h"
+#include "http_service.h"
 #include "utils.h"
 
 #include <cjson/cJSON.h>
 #include <pigpio.h>
-#include <sqlite3.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -12,7 +12,6 @@
 #include <libgen.h>
 #include <limits.h>
 #include <linux/limits.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,9 +22,7 @@
 #define BAD_TEMPERATURE 65535
 
 struct Payload pl;
-
 volatile sig_atomic_t ev_flag = 0;
-char db_path[PATH_MAX];
 
 void signal_handler(int signum) {
   ev_flag = 1;
@@ -129,128 +126,6 @@ cJSON *read_config_file(const char *config_path) {
   return json;
 }
 
-int prepare_database() {
-  int retval = 0;
-  sqlite3 *db;
-  snprintf(db_path, PATH_MAX, "%s", getenv("RD_DB_DIR"));
-  const char sql_create_stmts[][512] = {
-      "CREATE TABLE IF NOT EXISTS door_state"
-      "("
-      "  [record_id] INTEGER PRIMARY KEY AUTOINCREMENT,"
-      "  [record_time] TEXT,"
-      "  [door_state] INTEGER"
-      ")",
-      "CREATE TABLE IF NOT EXISTS temp_control"
-      "("
-      "  [record_id] INTEGER PRIMARY KEY AUTOINCREMENT,"
-      "  [record_time] TEXT,"
-      "  [external_temps] TEXT,"
-      "  [internal_temps] TEXT,"
-      "  [fans_load] INTEGER"
-      ")"};
-  char *sqlite_err_msg = NULL;
-  const size_t table_count =
-      sizeof(sql_create_stmts) / sizeof(sql_create_stmts[0]);
-  if (sqlite3_open(db_path, &db) != SQLITE_OK) {
-    syslog(LOG_ERR, "Cannot open database [%s]: %s. INSERT will be skipped",
-           db_path, sqlite3_errmsg(db));
-    retval = -1;
-    goto err_sqlite3_open;
-  }
-  for (size_t i = 0; i < table_count; ++i) {
-    if (sqlite3_exec(db, sql_create_stmts[i], NULL, NULL, &sqlite_err_msg) !=
-        SQLITE_OK) {
-      syslog(LOG_ERR, "SQL error: %s. SQL statement [%s] is not successful.",
-             sqlite_err_msg, sql_create_stmts[i]);
-      sqlite3_free(sqlite_err_msg);
-    }
-  }
-err_sqlite3_open:
-  if (sqlite3_close(db) != SQLITE_OK) {
-    syslog(LOG_ERR, "sqlite3_close() failed.");
-  }
-  syslog(LOG_INFO, "%zu tables @ %s prepared", table_count, db_path);
-  return retval;
-}
-
-void *ev_monitor_rack_door() {
-  syslog(LOG_INFO, "ev_monitor_rack_door() started.");
-  const int pin_pos = 19;
-  const int pin_neg = 16;
-
-  const char sql_insert[] = "INSERT INTO door_state"
-                            "(record_time, door_state) "
-                            "VALUES(?, ?);";
-  time_t now;
-  sqlite3 *db;
-
-  gpioSetMode(pin_pos, PI_OUTPUT);
-  gpioSetMode(pin_neg, PI_INPUT);
-  gpioWrite(pin_pos, PI_HIGH);
-  gpioSetPullUpDown(pin_neg, PI_PUD_UP);
-
-  // false -> circuit opened -> door opened
-  // true -> circuit closed -> door closed
-  bool last_status = true;
-  bool current_status = true;
-  size_t status_count = 0;
-  while (!ev_flag) {
-    int res;
-    usleep(1000 * 1000); // i.e., 1sec
-    current_status = gpioRead(pin_neg);
-    if (current_status != last_status) {
-      ++status_count;
-      if (status_count < 5) {
-        continue;
-      }
-      last_status = current_status;
-
-      int rc = sqlite3_open(db_path, &db);
-      if (rc != SQLITE_OK) {
-        syslog(LOG_ERR, "Cannot open database [%s]: %s. INSERT skipped",
-               db_path, sqlite3_errmsg(db));
-        goto err_sqlite3_open;
-      }
-      sqlite3_stmt *stmt;
-      if (sqlite3_prepare_v2(db, sql_insert, 512, &stmt, NULL) != SQLITE_OK) {
-        syslog(LOG_ERR, "sqlite3_prepare_v2() failed: %s. INSERT skipped",
-               sqlite3_errmsg(db));
-        goto err_sqlite3_prepare;
-      }
-      time(&now);
-      char buf[sizeof("1970-01-01 00:00:00")];
-      strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", localtime(&now));
-      /* here we try to be consistent with common sense:
-        1 means "triggered" and thus "opened"*/
-      if (sqlite3_bind_text(stmt, 1, buf, -1, NULL) != SQLITE_OK ||
-          sqlite3_bind_int(stmt, 2, !current_status) != SQLITE_OK) {
-        syslog(LOG_ERR, "sqlite3_bind_...() failed: %s. INSERT skipped",
-               sqlite3_errmsg(db));
-        goto err_sqlite3_bind;
-      }
-      if ((res = sqlite3_step(stmt)) != SQLITE_OK) {
-        syslog(LOG_ERR, "sqlite3_step() failed: %d(%s). INSERT skipped", res,
-               sqlite3_errmsg(db));
-      }
-    err_sqlite3_bind:
-      rc = sqlite3_finalize(stmt);
-      if (rc != SQLITE_OK) {
-        syslog(LOG_ERR, "SQL error: %d. INSERT is not successful.\n", rc);
-        sqlite3_close(db);
-        continue;
-      }
-    err_sqlite3_prepare:
-    err_sqlite3_open:
-      sqlite3_close(db);
-    } else {
-      status_count = 0;
-    }
-  }
-
-  syslog(LOG_INFO, "ev_monitor_rack_door() quits gracefully.");
-  return NULL;
-}
-
 int write_int_arr_to_cstr(const size_t arr_size, const int32_t *arr,
                           char *dest_str) {
   int offset = 0;
@@ -268,101 +143,6 @@ int write_int_arr_to_cstr(const size_t arr_size, const int32_t *arr,
     dest_str[strlen(dest_str) - 1] = '\0';
   }
   return 0;
-}
-
-void save_data_to_db() {
-  const char *sql_insert =
-      "INSERT INTO temp_control"
-      "(record_time, external_temps, internal_temps, fans_load) "
-      "VALUES(?, ?, ?, ?);";
-  time_t now;
-  int res;
-  sqlite3 *db;
-  char ext_temps[pl.num_ext_sensors * 6];
-  char int_temps[pl.num_ext_sensors * 6];
-
-  if (sqlite3_open(db_path, &db) != SQLITE_OK) {
-    syslog(LOG_ERR, "Cannot open database [%s]: %s. INSERT skipped", db_path,
-           sqlite3_errmsg(db));
-    goto err_sqlite3_open;
-  }
-  sqlite3_stmt *stmt = NULL;
-  if (sqlite3_prepare_v2(db, sql_insert, 512, &stmt, NULL) != SQLITE_OK) {
-    syslog(LOG_ERR, "sqlite3_prepare_v2() error: %s, INSERT skipped",
-           sqlite3_errmsg(db));
-    goto err_sqlite3_prepare;
-  }
-
-  time(&now);
-  char buf[sizeof("1970-01-01 00:00:00")];
-  strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", localtime(&now));
-
-  if (write_int_arr_to_cstr(pl.num_ext_sensors, pl.ext_temps, ext_temps) != 0 ||
-      write_int_arr_to_cstr(pl.num_int_sensors, pl.int_temps, int_temps) != 0) {
-    syslog(LOG_ERR, "write_int_arr_to_cstr() failed. INSERT skipped");
-    goto err_temps_str;
-  }
-
-  if (sqlite3_bind_text(stmt, 1, buf, -1, NULL) != SQLITE_OK ||
-      sqlite3_bind_text(stmt, 2, ext_temps, -1, NULL) != SQLITE_OK ||
-      sqlite3_bind_text(stmt, 3, int_temps, -1, NULL) != SQLITE_OK ||
-      sqlite3_bind_int(stmt, 4, pl.fans_load) != SQLITE_OK) {
-    syslog(LOG_ERR, "sqlite3_bind_...() failed. INSERT skipped");
-    goto err_sqlite_bind;
-  }
-  // sqlite3_step() "evaluates an SQL statement"
-  if ((res = sqlite3_step(stmt)) != SQLITE_OK) {
-    syslog(LOG_ERR, "sqlite3_step() failed: %d(%s). INSERT skipped", res,
-           sqlite3_errmsg(db));
-  }
-err_temps_str:
-err_sqlite_bind:
-  if (sqlite3_finalize(stmt) != SQLITE_OK) {
-    syslog(LOG_ERR, "sqlite3_finalize() failed. INSERT skipped");
-  }
-err_sqlite3_prepare:
-err_sqlite3_open:
-  // Whether or not an error occurs when it is opened, resources associated
-  // with the database connection handle should be released by passing it to
-  // sqlite3_close() when it is no longer required.
-  if (sqlite3_close(db) != SQLITE_OK) {
-    syslog(LOG_ERR, "sqlite3_close() failed.");
-  }
-}
-
-void *ev_apply_fans_load() {
-
-  syslog(LOG_INFO, "ev_apply_fans_load() started.");
-
-  const uint16_t fans_pin = 23;
-  const size_t interval_sec = 1800;
-  gpioSetMode(fans_pin, PI_OUTPUT);
-  gpioSetPWMfrequency(fans_pin, 50); // Set GPIO23 to 50Hz.
-
-  // Wait for all sensors to be read at least once
-  sleep((pl.num_ext_sensors + pl.num_int_sensors) * 5);
-
-  while (!ev_flag) {
-    // Strictly speaking, there could be race conditions, but the consequence
-    // should be fine for this particular purpose
-    int _fans_load = (pl.int_temp == pl.ext_temp && pl.int_temp == 0)
-                         ? 0
-                         : ((pl.int_temp - pl.ext_temp) / 10 / 6);
-    // i.e., (int_temp - ext_temp) > 6 degrees Celsius means 100% fans load
-    _fans_load = _fans_load > 100 ? 100 : _fans_load;
-    _fans_load = _fans_load < 0 ? 0 : _fans_load;
-    pl.fans_load = _fans_load;
-
-    if (gpioPWM(fans_pin, pl.fans_load / 100.0 * 254) != 0) {
-      syslog(LOG_ERR, "Failed to set new fans load.");
-    }
-    save_data_to_db();
-    for (size_t i = 0; i < interval_sec && !ev_flag; ++i) {
-      sleep(1);
-    }
-  }
-  syslog(LOG_INFO, "ev_apply_fans_load() quits gracefully.");
-  return NULL;
 }
 
 void save_temp_to_payload(char *sensors[], const size_t sensor_count,
@@ -399,51 +179,6 @@ void save_temp_to_payload(char *sensors[], const size_t sensor_count,
   }
   // An intermediary variable canNOT be removed or there will be race condition
   *temp = _temp;
-}
-
-void *ev_get_temp_from_sensors() {
-  syslog(LOG_INFO, "ev_get_temp_from_sensors() started.");
-
-  while (!ev_flag) {
-    save_temp_to_payload(pl.int_sensor_paths, pl.num_int_sensors, pl.int_temps,
-                         &pl.int_temp);
-    save_temp_to_payload(pl.ext_sensor_paths, pl.num_ext_sensors, pl.ext_temps,
-                         &pl.ext_temp);
-  }
-  syslog(LOG_INFO, "ev_get_temp_from_sensors() quits gracefully.");
-  return NULL;
-}
-
-void *ev_set_7seg_display() {
-  syslog(LOG_INFO, "ev_set_7seg_display() started.");
-  init_7seg_display();
-  uint8_t values[DIGIT_COUNT];
-  bool dots[DIGIT_COUNT] = {0, 0, 1, 0, 0, 0, 1, 0};
-
-  while (!ev_flag) {
-    // We need to use an intermediary variable to avoid accessing pl members
-    // multiple times; otherwise we can still trigger race condition
-
-    const uint16_t fl = pl.fans_load * 10;
-    const int _int_temp = pl.int_temp;
-
-    values[0] = 10; // means turning the digit off
-    values[1] = _int_temp % 100000 / 10000;
-    values[2] = _int_temp % 10000 / 1000;
-    values[3] = _int_temp % 1000 / 100;
-
-    values[4] = fl % 10000 / 1000;
-    if (values[4] == 0) {
-      values[4] = 10; // means turning the digit off
-    }
-    values[5] = fl % 1000 / 100;
-    values[6] = fl % 100 / 10;
-    values[7] = fl % 10;
-    show(values, dots);
-  }
-  char exit_msg[] = "ev_set_7seg_display() quits gracefully.\n";
-  syslog(LOG_INFO, "%s", exit_msg);
-  return NULL;
 }
 
 int install_signal_handler() {
@@ -506,22 +241,12 @@ int main(int argc, char *argv[]) {
     goto err_install_signal_handler;
   }
 
-  const cJSON *http_service =
-      cJSON_GetObjectItemCaseSensitive(json, "http_service");
-  if (http_service == NULL ||
-      !cJSON_IsString(cJSON_GetObjectItemCaseSensitive(http_service, "host")) ||
-      !cJSON_IsNumber(cJSON_GetObjectItemCaseSensitive(http_service, "port")) ||
-      !cJSON_IsString(
-          cJSON_GetObjectItemCaseSensitive(http_service, "advertised_addr"))) {
-    syslog(LOG_ERR, "Malformed JSON config file");
-    retval = -1;
-    goto err_invalid_http_service_config;
+  struct MHD_Daemon *httpd =
+      init_mhd(cJSON_GetObjectItemCaseSensitive(json, "http_service"));
+  if (httpd == NULL) {
+    syslog(LOG_ERR, "init_mhd() failed");
+    goto err_init_mhd;
   }
-  initialize_http_service(
-      cJSON_GetObjectItemCaseSensitive(http_service, "host")->valuestring,
-      cJSON_GetObjectItemCaseSensitive(http_service, "port")->valueint,
-      cJSON_GetObjectItemCaseSensitive(http_service, "advertised_addr")
-          ->valuestring);
   load_sensors(json);
   if (pthread_create(&tids[0], NULL, ev_get_temp_from_sensors, NULL) != 0 ||
       pthread_create(&tids[1], NULL, ev_apply_fans_load, NULL) != 0 ||
@@ -541,8 +266,8 @@ int main(int argc, char *argv[]) {
   for (size_t i = 0; i < sizeof(tids) / sizeof(tids[0]); ++i) {
     pthread_join(tids[i], NULL);
   }
-  finalize_http_service();
-err_invalid_http_service_config:
+  MHD_stop_daemon(httpd);
+err_init_mhd:
   /* Stop DMA, release resources */
   gpioTerminate();
   syslog(LOG_INFO, "main() quits gracefully.");

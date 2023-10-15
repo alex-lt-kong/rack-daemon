@@ -1,6 +1,7 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
 #define MAX_SENSORS 16
@@ -23,4 +24,5 @@ struct Payload {
 };
 
 extern struct Payload pl;
+volatile sig_atomic_t ev_flag;
 #endif
