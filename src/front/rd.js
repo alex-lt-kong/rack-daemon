@@ -34,14 +34,14 @@ app.use(cors({
 }));
 
 app.use('/', express.static(path.join(__dirname, 'public/')));
-
-app.get('/get_logged_in_user/', (req, res, next) => {
+/*
+('/get_logged_in_user/', (req, res, next) => {
   res.json({
     'status': 'success',
     'data': req.auth.user
   });
 });
-
+*/
 app.get('/get_rack_door_states_json/', (req, res, next) => {
   const db = new sqlite3.Database(databasePath, (err) => {
     if (err) {

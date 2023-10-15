@@ -257,7 +257,7 @@ class NavBar extends React.Component {
   }
 
   componentDidMount() {
-    axios.get('../get_logged_in_user/')
+    axios.get('https://rpi-rack.sz.lan:4443/get_logged_in_user/')
         .then((response) => {
           this.setState({
             user: response.data.data

@@ -72,6 +72,19 @@ request_handler(__attribute__((unused)) void *cls, struct MHD_Connection *conn,
     MHD_destroy_response(resp);
     return ret;
   }
+  if (strcmp(url, "/get_logged_in_user/") == 0) {
+    char username_json[strlen("{\"data\":\"%s\"}") + 1 +
+                       strlen(http_auth_username) + 1];
+    snprintf(username_json, sizeof(username_json), "{\"data\":\"%s\"}",
+             http_auth_username);
+    resp = MHD_create_response_from_buffer(
+        strlen(username_json), (void *)username_json, MHD_RESPMEM_MUST_COPY);
+    MHD_add_response_header(resp, "Content-Type", "application/json;");
+    MHD_add_response_header(resp, "Access-Control-Allow-Origin", "*");
+    ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
+    MHD_destroy_response(resp);
+    return ret;
+  }
   if (strcmp(url, "/get_temp_control_json/") == 0) {
     cJSON *dto = get_temp_control_json();
 
