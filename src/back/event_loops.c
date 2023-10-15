@@ -3,8 +3,14 @@
 #include "database.h"
 #include "global_vars.h"
 
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/limits.h>
 #include <sqlite3.h>
+#include <stdio.h>
+#include <string.h>
 #include <sys/syslog.h>
+#include <unistd.h>
 
 void *ev_set_7seg_display() {
   syslog(LOG_INFO, "ev_set_7seg_display() started.");

@@ -41,36 +41,7 @@ app.get('/get_logged_in_user/', (req, res, next) => {
     'data': req.auth.user
   });
 });
-/*
-app.get('/get_temp_control_json/', (req, res, next) => {
-  const db = new sqlite3.Database(databasePath, (err) => {
-    if (err) {
-      res.status(500).json({
-        'status': 'error',
-        'message': 'Cannot open database'
-      });
-      console.error(err.message);
-    } else {
-      const sql = 'SELECT * FROM temp_control ORDER BY record_time DESC LIMIT 1';
-      const params = [];
-      db.all(sql, params, (err, rows) => {
-        if (err) {
-          res.status(500).json({
-            'status': 'error',
-            'message': err.message
-          });
-          return;
-        }
-        res.json({
-          'status': 'success',
-          'data': rows
-        });
-      });
-    }
-  });
-  db.close();
-});
-*/
+
 app.get('/get_rack_door_states_json/', (req, res, next) => {
   const db = new sqlite3.Database(databasePath, (err) => {
     if (err) {

@@ -4,6 +4,8 @@
 #include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#define BAD_TEMPERATURE 65535
 #define MAX_SENSORS 16
 
 struct Payload {
