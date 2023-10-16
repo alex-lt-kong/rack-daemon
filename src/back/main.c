@@ -4,6 +4,7 @@
 #include "global_vars.h"
 #include "http_service_application.h"
 #include "http_service_webapi.h"
+#include "sensors.h"
 
 #include <cjson/cJSON.h>
 #include <pigpio.h>

@@ -9,6 +9,6 @@ add_library(7seg_display 7seg_display.c)
 add_library(utils utils.c)
 
 target_link_libraries(rd 
-    sensors http_service_webapi http_service_application database event_loops 7seg_display utils
+    sensors database http_service_webapi http_service_application event_loops 7seg_display utils
     pigpio rt pthread sqlite3 microhttpd cjson
 )

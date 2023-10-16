@@ -2,6 +2,7 @@
 #include "7seg_display.h"
 #include "database.h"
 #include "global_vars.h"
+#include "sensors.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -121,8 +122,7 @@ void *ev_monitor_rack_door() {
     } else {
       status_count = 0;
     }
-
-    syslog(LOG_INFO, "ev_monitor_rack_door() quits gracefully.");
-    return NULL;
   }
+  syslog(LOG_INFO, "ev_monitor_rack_door() quits gracefully.");
+  return NULL;
 }

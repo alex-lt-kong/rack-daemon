@@ -7,6 +7,7 @@
 
 #define BAD_TEMPERATURE 65535
 #define MAX_SENSORS 16
+#define SAMPLE_ISO_DT_STRING "1970-01-01 00:00:00"
 
 struct Payload {
   /* The program relies on glibc's implicit guarantee to achieve "lock-free"

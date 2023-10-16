@@ -1,5 +1,4 @@
 #include "database.h"
-#include "global_vars.h"
 #include "utils.h"
 
 #include <linux/limits.h>
@@ -7,10 +6,59 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/syslog.h>
 #include <time.h>
 
 char db_path[PATH_MAX];
+
+ssize_t
+get_top_six_door_states(int ids[],
+                        char record_times[6][sizeof(SAMPLE_ISO_DT_STRING)],
+                        int states[]) {
+  const char sql_stmt[] = "SELECT record_id, record_time, door_state "
+                          "FROM door_state ORDER BY record_time DESC LIMIT 6;";
+  int retval = 0;
+  sqlite3 *db;
+  sqlite3_stmt *stmt;
+
+  if (sqlite3_open(db_path, &db) != SQLITE_OK) {
+    syslog(LOG_ERR, "sqlite3_open() failed for: %s", sqlite3_errmsg(db));
+    retval = -1;
+    goto err_sqlite3_open;
+  }
+
+  if (sqlite3_prepare_v2(db, sql_stmt, -1, &stmt, NULL) != SQLITE_OK) {
+    syslog(LOG_ERR, "sqlite3_prepare_v2() failed: %s", sqlite3_errmsg(db));
+    retval = -1;
+    goto err_sqlite3_prepare_v2;
+  }
+
+  int rc;
+  size_t row_count = 0;
+  while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
+    ids[row_count] = sqlite3_column_int(stmt, 0);
+    strcpy(record_times[row_count], (char *)sqlite3_column_text(stmt, 1));
+    states[row_count] = sqlite3_column_int(stmt, 2);
+    // printf("%d\t%s\t%d\n\n", sqlite3_column_int(stmt, 0),
+    //        sqlite3_column_text(stmt, 1), sqlite3_column_int(stmt, 2));
+    ++row_count;
+  }
+  retval = row_count;
+  if (rc != SQLITE_DONE) {
+    syslog(LOG_ERR, "sqlite3_step() error: %s", sqlite3_errmsg(db));
+    retval = -1;
+  }
+
+  if (sqlite3_finalize(stmt) != SQLITE_OK) {
+    syslog(LOG_ERR, "sqlite3_finalize() error: %s", sqlite3_errmsg(db));
+    retval = -1;
+  }
+err_sqlite3_prepare_v2:
+err_sqlite3_open:
+  sqlite3_close(db);
+  return retval;
+}
 
 int prepare_database() {
   int retval = 0;
@@ -57,7 +105,7 @@ err_sqlite3_open:
 }
 
 void save_data_to_db() {
-  const char *sql_insert =
+  const char sql_insert[] =
       "INSERT INTO temp_control"
       "(record_time, external_temps, internal_temps, fans_load) "
       "VALUES(?, ?, ?, ?);";
@@ -80,7 +128,7 @@ void save_data_to_db() {
   }
 
   time(&now);
-  char buf[sizeof("1970-01-01 00:00:00")];
+  char buf[sizeof(SAMPLE_ISO_DT_STRING)];
   strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", localtime(&now));
 
   if (concat_int_arr_to_cstr(pl.num_ext_sensors, pl.ext_temps, ext_temps) !=
@@ -100,8 +148,8 @@ void save_data_to_db() {
   }
   // sqlite3_step() "evaluates an SQL statement"
   if ((res = sqlite3_step(stmt)) != SQLITE_OK) {
-    syslog(LOG_ERR, "sqlite3_step() failed: %d(%s). INSERT skipped", res,
-           sqlite3_errmsg(db));
+    syslog(LOG_ERR, "%d@%s: sqlite3_step() failed: %d(%s). INSERT skipped",
+           __LINE__, __FILE__, res, sqlite3_errmsg(db));
   }
 err_temps_str:
 err_sqlite_bind:
@@ -138,7 +186,7 @@ void save_rack_door_state_to_db(bool current_status) {
     goto err_sqlite3_prepare;
   }
   time(&now);
-  char buf[sizeof("1970-01-01 00:00:00")];
+  char buf[sizeof(SAMPLE_ISO_DT_STRING)];
   strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", localtime(&now));
   /* here we try to be consistent with common sense:
     1 means "triggered" and thus "opened"*/
@@ -149,8 +197,8 @@ void save_rack_door_state_to_db(bool current_status) {
     goto err_sqlite3_bind;
   }
   if ((res = sqlite3_step(stmt)) != SQLITE_OK) {
-    syslog(LOG_ERR, "sqlite3_step() failed: %d(%s). INSERT skipped", res,
-           sqlite3_errmsg(db));
+    syslog(LOG_ERR, "%d@%s: sqlite3_step() failed: %d(%s). INSERT skipped",
+           __LINE__, __FILE__, res, sqlite3_errmsg(db));
   }
 err_sqlite3_bind:
   rc = sqlite3_finalize(stmt);

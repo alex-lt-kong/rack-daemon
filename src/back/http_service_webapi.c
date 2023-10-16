@@ -1,4 +1,5 @@
 #include "http_service_webapi.h"
+#include "database.h"
 #include "http_service_application.h"
 
 #include <arpa/inet.h>
@@ -96,6 +97,14 @@ request_handler(__attribute__((unused)) void *cls, struct MHD_Connection *conn,
     ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
     MHD_destroy_response(resp);
     cJSON_Delete(dto);
+    return ret;
+  }
+  if (strcmp(url, "/get_rack_door_states_json/") == 0) {
+    get_rack_door_states_json();
+    resp = MHD_create_response_from_buffer(strlen("Hi"), (void *)"Hi",
+                                           MHD_RESPMEM_MUST_COPY);
+    ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
+    MHD_destroy_response(resp);
     return ret;
   }
 
