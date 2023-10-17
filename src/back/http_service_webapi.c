@@ -27,6 +27,9 @@ enum MHD_Result resp_404(struct MHD_Connection *conn) {
   return ret;
 }
 
+// enum MHD_Result *MHD_AccessHandlerCallback (void *cls, struct MHD_Connection
+// * connection, const char *url, const char *method, const char *version, const
+// char *upload_data, size_t *upload_data_size, void **con_cls)
 enum MHD_Result
 request_handler(__attribute__((unused)) void *cls, struct MHD_Connection *conn,
                 const char *url, const char *method,
@@ -111,6 +114,22 @@ request_handler(__attribute__((unused)) void *cls, struct MHD_Connection *conn,
     cJSON_Delete(dto);
     return ret;
   }
+  if (strcmp(url, "/get_images_jpg/") == 0) {
+    const char *image_name =
+        MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "imageName");
+    if (image_name != NULL) {
+      resp = MHD_create_response_from_buffer(
+          strlen(image_name), (void *)image_name, MHD_RESPMEM_MUST_COPY);
+      ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
+    } else {
+      const char err_msg[] = "Not found!";
+      resp = MHD_create_response_from_buffer(strlen(err_msg), (void *)err_msg,
+                                             MHD_RESPMEM_MUST_COPY);
+      ret = MHD_queue_response(conn, MHD_HTTP_NOT_FOUND, resp);
+    }
+    MHD_destroy_response(resp);
+    return ret;
+  }
 
   return resp_404(conn);
 }
@@ -186,6 +205,7 @@ struct MHD_Daemon *init_mhd(const cJSON *json) {
   load_ssl_key_or_crt(json_ssl_key_path->valuestring, (char **)(&ssl_key));
   struct MHD_Daemon *daemon;
   // clang-format off
+  // struct MHD_Daemon * MHD_start_daemon (unsigned int flags, unsigned short port, MHD_AcceptPolicyCallback apc, void *apc_cls, MHD_AccessHandlerCallback dh, void *dh_cls, ...)
   daemon = MHD_start_daemon(
     MHD_USE_INTERNAL_POLLING_THREAD | MHD_USE_DEBUG | MHD_USE_TLS,
     server_addr.sin_port, NULL,
