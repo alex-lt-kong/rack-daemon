@@ -33,17 +33,38 @@ cJSON *get_temp_control_json() {
   strftime(dt_buffer, sizeof dt_buffer, "%Y-%m-%d %H:%M:%S", localtime(&now));
   cJSON_AddItemToObject(dto, "record_time", cJSON_CreateString(dt_buffer));
   cJSON_AddItemToObject(dto, "fans_load", cJSON_CreateNumber(pl.fans_load));
+  /* cJSON_AddItemToObject() transfers ownership from cJSON_Create...() to dto
+     According to this link: https://github.com/DaveGamble/cJSON#printing */
   return dto;
 }
 
-void get_rack_door_states_json() {
+cJSON *get_rack_door_states_json() {
   const size_t max_row_count = 6;
   int ids[max_row_count];
   char record_times[max_row_count][sizeof(SAMPLE_ISO_DT_STRING)];
   int states[max_row_count];
+  cJSON *dto = cJSON_CreateObject();
+  if (dto == NULL) {
+    goto err_failure;
+  }  
   const ssize_t row_count = get_top_six_door_states(ids, record_times, states);
-  for (ssize_t i = 0; i < row_count; ++i) {
-    printf("%d\t%s\t%d\n", ids[i], record_times[i], states[i]);
+  cJSON *entries = cJSON_AddArrayToObject(dto, "data");
+  if (entries == NULL) {
+    goto err_failure;
   }
-  printf("\n");
+  for (ssize_t i = 0; i < row_count; ++i) {
+    cJSON *entry = cJSON_CreateObject();
+    if (cJSON_AddNumberToObject(entry, "record_id", ids[i]) == NULL ||
+        cJSON_AddStringToObject(entry, "record_time", record_times[i]) ==
+            NULL ||
+        cJSON_AddNumberToObject(entry, "door_state", states[i]) == NULL) {
+      goto err_failure;
+    }
+    cJSON_AddItemToArray(entries, entry);
+  }
+  return dto;
+err_failure:
+  syslog(LOG_ERR, "cJSON_CreateObject() returns NULL");
+  cJSON_Delete(dto);
+  return NULL;
 }

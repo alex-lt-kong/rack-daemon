@@ -114,7 +114,7 @@ class DoorState extends React.Component {
   }
 
   componentDidMount() {
-    axios.get('../get_rack_door_states_json/')
+    axios.get('https://rpi-rack.sz.lan:4443/get_rack_door_states_json/')
         .then((response) => {
           this.setState({
             doorStates: response.data.data

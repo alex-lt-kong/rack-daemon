@@ -35,13 +35,6 @@ app.use(cors({
 
 app.use('/', express.static(path.join(__dirname, 'public/')));
 /*
-('/get_logged_in_user/', (req, res, next) => {
-  res.json({
-    'status': 'success',
-    'data': req.auth.user
-  });
-});
-*/
 app.get('/get_rack_door_states_json/', (req, res, next) => {
   const db = new sqlite3.Database(databasePath, (err) => {
     if (err) {
@@ -70,7 +63,7 @@ app.get('/get_rack_door_states_json/', (req, res, next) => {
   });
   db.close();
 });
-
+*/
 app.get('/get_images_list_json/', (req, res, next) => {
   const imagesNameList = [];
   fs.readdir(imagesDir, (err, fileNames) => {

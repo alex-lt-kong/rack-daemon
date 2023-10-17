@@ -100,11 +100,15 @@ request_handler(__attribute__((unused)) void *cls, struct MHD_Connection *conn,
     return ret;
   }
   if (strcmp(url, "/get_rack_door_states_json/") == 0) {
-    get_rack_door_states_json();
-    resp = MHD_create_response_from_buffer(strlen("Hi"), (void *)"Hi",
-                                           MHD_RESPMEM_MUST_COPY);
+    cJSON *dto = get_rack_door_states_json();
+    const char *dto_json_str = cJSON_PrintUnformatted(dto);
+    resp = MHD_create_response_from_buffer(
+        strlen(dto_json_str), (void *)dto_json_str, MHD_RESPMEM_MUST_FREE);
+    MHD_add_response_header(resp, "Content-Type", "application/json");
+    MHD_add_response_header(resp, "Access-Control-Allow-Origin", "*");
     ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
     MHD_destroy_response(resp);
+    cJSON_Delete(dto);
     return ret;
   }
 
