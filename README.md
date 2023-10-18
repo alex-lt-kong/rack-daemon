@@ -33,10 +33,6 @@ make install
 * `OpenCV`: Install following
 [this link](https://github.com/alex-lt-kong/camera-server/blob/main/helper/build-notes.md).
 
-* Environment variables:
-
-    * `RD_DB_DIR="/bin/rack-daemon/data.sqlite"`
-
 ### Front-end
 
 * `npm install`
