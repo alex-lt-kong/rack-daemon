@@ -33,6 +33,15 @@ make install
 * `OpenCV`: Install following
 [this link](https://github.com/alex-lt-kong/camera-server/blob/main/helper/build-notes.md).
 
+#### Quality assurance
+
+* Instead of `cmake ../`, run `cmake .. -DBUILD_ASAN=ON` /
+`cmake .. -DBUILD_UBSAN=ON` to test memory/undefiend behavior error with
+AddressSanitizer / UndefinedBehaviorSanitizer.
+* The repo is also tested with `Valgrind` from time to time:
+`valgrind --leak-check=yes --log-file=valgrind.rpt ./build/rd`.
+
+
 ### Front-end
 
 * `npm install`
