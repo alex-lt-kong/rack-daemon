@@ -112,8 +112,8 @@ void save_data_to_db() {
   time_t now;
   int res;
   sqlite3 *db;
-  char ext_temps[pl.num_ext_sensors * 6];
-  char int_temps[pl.num_ext_sensors * 6];
+  char ext_temps[pl.num_ext_sensors * 7 + 1];
+  char int_temps[pl.num_ext_sensors * 6 + 1];
 
   if (sqlite3_open(db_path, &db) != SQLITE_OK) {
     syslog(LOG_ERR, "Cannot open database [%s]: %s. INSERT skipped", db_path,

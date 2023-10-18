@@ -1,0 +1,25 @@
+{
+    "http_service": {
+        "interface": "0.0.0.0",
+        "port": 443,
+        "advertised_addr": "https://localhost:443",
+        "ssl": {
+            "crt_path": "/etc/ssl/rack.crt",
+            "key_path": "/etc/ssl/rack.key"
+        },
+        "auth": {
+            "username": "username",
+            "password": "password"
+        },
+        "static_file_root_directory": "/tmp/rack-daemon/src/front/public/",
+        "image_directory": "/tmp/rack-daemon/images/"
+    },
+    "external_sensors": [
+        "/sys/bus/w1/devices/28-01144ebe52aa/w1_slave",
+        "/sys/bus/w1/devices/28-01144ef1faaa/w1_slave"
+    ],
+    "internal_sensors": [
+        "/sys/bus/w1/devices/28-0301a279faf2/w1_slave",
+        "/sys/bus/w1/devices/28-030997792b61/w1_slave"
+    ]
+}

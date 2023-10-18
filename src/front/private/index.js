@@ -25,7 +25,7 @@ class TempsAndFans extends React.Component {
   }
 
   componentDidMount() {
-    axios.get('https://rpi-rack.sz.lan:4443/get_temp_control_json/')
+    axios.get('../get_temp_control_json/')
         .then((response) => {
           this.setState({
             readings: [response.data]
@@ -114,7 +114,7 @@ class DoorState extends React.Component {
   }
 
   componentDidMount() {
-    axios.get('https://rpi-rack.sz.lan:4443/get_rack_door_states_json/')
+    axios.get('../get_rack_door_states_json/')
         .then((response) => {
           this.setState({
             doorStates: response.data.data
@@ -257,7 +257,7 @@ class NavBar extends React.Component {
   }
 
   componentDidMount() {
-    axios.get('https://rpi-rack.sz.lan:4443/get_logged_in_user/')
+    axios.get('../get_logged_in_user/')
         .then((response) => {
           this.setState({
             user: response.data.data

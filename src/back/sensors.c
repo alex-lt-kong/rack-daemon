@@ -41,7 +41,9 @@ void load_sensor(const cJSON *json, const char *key, char **sensor_paths,
   syslog(LOG_INFO, "Loading %s:", key);
   cJSON_ArrayForEach(s, cJSON_GetObjectItemCaseSensitive(json, key)) {
     if (cJSON_IsString(s)) {
-      sensor_paths[*num_sensors] = strdup(s->valuestring);
+      // sensor_paths[*num_sensors] will be pointing to s->valuestring, but
+      // s->valuestring will only be free()ed at the very end of the program
+      sensor_paths[*num_sensors] = s->valuestring;
       syslog(LOG_INFO, "%s", sensor_paths[*num_sensors]);
       if (get_reading_from_sensor(sensor_paths[*num_sensors]) !=
           BAD_TEMPERATURE) {

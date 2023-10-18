@@ -15,14 +15,137 @@
 #define SSL_FILE_BUFF_SIZE 8192
 const char *http_auth_username;
 const char *http_auth_password;
+const char *image_directory;
+const char *static_file_root_directory;
 
-enum MHD_Result resp_404(struct MHD_Connection *conn) {
-  char msg[PATH_MAX];
-  snprintf(msg, PATH_MAX - 1, "Resource not found");
-  syslog(LOG_WARNING, "%s", msg);
-  struct MHD_Response *resp = MHD_create_response_from_buffer(
-      strlen(msg), (void *)msg, MHD_RESPMEM_MUST_COPY);
-  enum MHD_Result ret = MHD_queue_response(conn, MHD_HTTP_NOT_FOUND, resp);
+int detect_directory_traversal(const char *path) {
+  // Check for use of "../" to traverse up the directory hierarchy
+  if (strstr(path, "../") != NULL) {
+    return 1;
+  }
+
+  // Check for use of "..\" in Windows style paths
+  if (strstr(path, "..\\") != NULL) {
+    return 1;
+  }
+
+  // Check for use of "/../" in Linux/Unix style paths
+  if (strstr(path, "/../") != NULL) {
+    return 1;
+  }
+
+  // Path passed all checks
+  return 0;
+}
+
+enum MHD_Result handler_get_logged_in_user(struct MHD_Connection *conn) {
+  enum MHD_Result ret;
+  struct MHD_Response *resp = NULL;
+  char username_json[strlen("{\"data\":\"%s\"}") + 1 +
+                     strlen(http_auth_username) + 1];
+  snprintf(username_json, sizeof(username_json), "{\"data\":\"%s\"}",
+           http_auth_username);
+  resp = MHD_create_response_from_buffer(
+      strlen(username_json), (void *)username_json, MHD_RESPMEM_MUST_COPY);
+  MHD_add_response_header(resp, "Content-Type", "application/json;");
+  ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
+  MHD_destroy_response(resp);
+  return ret;
+}
+enum MHD_Result handler_get_temp_control_json(struct MHD_Connection *conn) {
+  cJSON *dto = get_temp_control_json();
+  enum MHD_Result ret;
+  struct MHD_Response *resp = NULL;
+  const char *dto_json_str = cJSON_PrintUnformatted(dto);
+  resp = MHD_create_response_from_buffer(
+      strlen(dto_json_str), (void *)dto_json_str, MHD_RESPMEM_MUST_FREE);
+  MHD_add_response_header(resp, "Content-Type", "application/json");
+  ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
+  MHD_destroy_response(resp);
+  cJSON_Delete(dto);
+  return ret;
+}
+
+enum MHD_Result handler_get_rack_door_states_json(struct MHD_Connection *conn) {
+  cJSON *dto = get_rack_door_states_json();
+  enum MHD_Result ret;
+  struct MHD_Response *resp = NULL;
+  const char *dto_json_str = cJSON_PrintUnformatted(dto);
+  resp = MHD_create_response_from_buffer(
+      strlen(dto_json_str), (void *)dto_json_str, MHD_RESPMEM_MUST_FREE);
+  MHD_add_response_header(resp, "Content-Type", "application/json");
+  ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
+  MHD_destroy_response(resp);
+  cJSON_Delete(dto);
+  return ret;
+}
+
+enum MHD_Result handler_get_images_jpg(struct MHD_Connection *conn) {
+  enum MHD_Result ret;
+  struct MHD_Response *resp = NULL;
+  const char *image_name =
+      MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "imageName");
+  if (image_name == NULL) {
+    const char err_msg[] = "Not found!";
+    resp = MHD_create_response_from_buffer(strlen(err_msg), (void *)err_msg,
+                                           MHD_RESPMEM_MUST_COPY);
+    ret = MHD_queue_response(conn, MHD_HTTP_NOT_FOUND, resp);
+    goto finalize_image_resp;
+  }
+  if (detect_directory_traversal(image_name) == 1) {
+    const char err_msg[] = "Root traversal attempt!";
+    resp = MHD_create_response_from_buffer(strlen(err_msg), (void *)err_msg,
+                                           MHD_RESPMEM_MUST_COPY);
+    ret = MHD_queue_response(conn, MHD_HTTP_BAD_REQUEST, resp);
+
+    goto finalize_image_resp;
+  }
+  size_t image_length = 0;
+  char *image_buffer = read_file(image_directory, image_name, &image_length);
+  if (image_length > 0) {
+    resp = MHD_create_response_from_buffer(image_length, (void *)image_buffer,
+                                           MHD_RESPMEM_MUST_FREE);
+    ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
+    goto finalize_image_resp;
+  }
+  const char err_msg[] = "Error opening image file";
+  resp = MHD_create_response_from_buffer(strlen(err_msg), (void *)err_msg,
+                                         MHD_RESPMEM_MUST_COPY);
+  ret = MHD_queue_response(conn, MHD_HTTP_BAD_REQUEST, resp);
+finalize_image_resp:
+  MHD_destroy_response(resp);
+  return ret;
+}
+enum MHD_Result handler_get_images_list_json(struct MHD_Connection *conn) {
+  cJSON *dto = get_images_list_json(image_directory);
+  enum MHD_Result ret;
+  struct MHD_Response *resp = NULL;
+  const char *dto_json_str = cJSON_PrintUnformatted(dto);
+  resp = MHD_create_response_from_buffer(
+      strlen(dto_json_str), (void *)dto_json_str, MHD_RESPMEM_MUST_FREE);
+  MHD_add_response_header(resp, "Content-Type", "application/json");
+  ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
+  MHD_destroy_response(resp);
+  cJSON_Delete(dto);
+  return ret;
+}
+
+enum MHD_Result handler_fallback(struct MHD_Connection *conn, const char *url) {
+  enum MHD_Result ret;
+  struct MHD_Response *resp = NULL;
+  size_t file_length = 0;
+  char *file_buffer = read_file(static_file_root_directory, url, &file_length);
+  if (file_length > 0) {
+    resp = MHD_create_response_from_buffer(file_length, (void *)file_buffer,
+                                           MHD_RESPMEM_MUST_FREE);
+    ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
+    goto finalize_file_resp;
+  }
+  const char err_msg[] = "Error opening file";
+  resp = MHD_create_response_from_buffer(strlen(err_msg), (void *)err_msg,
+                                         MHD_RESPMEM_MUST_COPY);
+  ret = MHD_queue_response(conn, MHD_HTTP_NOT_FOUND, resp);
+finalize_file_resp:
   MHD_destroy_response(resp);
   return ret;
 }
@@ -37,7 +160,6 @@ request_handler(__attribute__((unused)) void *cls, struct MHD_Connection *conn,
                 __attribute__((unused)) const char *upload_data,
                 __attribute__((unused)) size_t *upload_data_size, void **ptr) {
   static int aptr;
-  // const char *me = (const char *)cls;
   struct MHD_Response *resp = NULL;
   enum MHD_Result ret;
   char *user;
@@ -68,70 +190,22 @@ request_handler(__attribute__((unused)) void *cls, struct MHD_Connection *conn,
     return ret;
   }
 
-  if (strcmp(url, "/health_check/") == 0) {
-    const char msg[] = PROJECT_NAME " is up and running";
-    resp = MHD_create_response_from_buffer(strlen(msg), (void *)msg,
-                                           MHD_RESPMEM_MUST_COPY);
-    ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
-    MHD_destroy_response(resp);
-    return ret;
-  }
   if (strcmp(url, "/get_logged_in_user/") == 0) {
-    char username_json[strlen("{\"data\":\"%s\"}") + 1 +
-                       strlen(http_auth_username) + 1];
-    snprintf(username_json, sizeof(username_json), "{\"data\":\"%s\"}",
-             http_auth_username);
-    resp = MHD_create_response_from_buffer(
-        strlen(username_json), (void *)username_json, MHD_RESPMEM_MUST_COPY);
-    MHD_add_response_header(resp, "Content-Type", "application/json;");
-    MHD_add_response_header(resp, "Access-Control-Allow-Origin", "*");
-    ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
-    MHD_destroy_response(resp);
-    return ret;
+    return handler_get_logged_in_user(conn);
   }
   if (strcmp(url, "/get_temp_control_json/") == 0) {
-    cJSON *dto = get_temp_control_json();
-
-    const char *dto_json_str = cJSON_PrintUnformatted(dto);
-    resp = MHD_create_response_from_buffer(
-        strlen(dto_json_str), (void *)dto_json_str, MHD_RESPMEM_MUST_FREE);
-    MHD_add_response_header(resp, "Content-Type", "application/json");
-    MHD_add_response_header(resp, "Access-Control-Allow-Origin", "*");
-    ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
-    MHD_destroy_response(resp);
-    cJSON_Delete(dto);
-    return ret;
+    return handler_get_temp_control_json(conn);
   }
   if (strcmp(url, "/get_rack_door_states_json/") == 0) {
-    cJSON *dto = get_rack_door_states_json();
-    const char *dto_json_str = cJSON_PrintUnformatted(dto);
-    resp = MHD_create_response_from_buffer(
-        strlen(dto_json_str), (void *)dto_json_str, MHD_RESPMEM_MUST_FREE);
-    MHD_add_response_header(resp, "Content-Type", "application/json");
-    MHD_add_response_header(resp, "Access-Control-Allow-Origin", "*");
-    ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
-    MHD_destroy_response(resp);
-    cJSON_Delete(dto);
-    return ret;
+    return handler_get_rack_door_states_json(conn);
   }
   if (strcmp(url, "/get_images_jpg/") == 0) {
-    const char *image_name =
-        MHD_lookup_connection_value(conn, MHD_GET_ARGUMENT_KIND, "imageName");
-    if (image_name != NULL) {
-      resp = MHD_create_response_from_buffer(
-          strlen(image_name), (void *)image_name, MHD_RESPMEM_MUST_COPY);
-      ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
-    } else {
-      const char err_msg[] = "Not found!";
-      resp = MHD_create_response_from_buffer(strlen(err_msg), (void *)err_msg,
-                                             MHD_RESPMEM_MUST_COPY);
-      ret = MHD_queue_response(conn, MHD_HTTP_NOT_FOUND, resp);
-    }
-    MHD_destroy_response(resp);
-    return ret;
+    return handler_get_images_jpg(conn);
   }
-
-  return resp_404(conn);
+  if (strcmp(url, "/get_images_list_json/") == 0) {
+    return handler_get_images_list_json(conn);
+  }
+  return handler_fallback(conn, url);
 }
 
 int load_ssl_key_or_crt(const char *path, char **out_content) {
@@ -161,6 +235,10 @@ err_fopen:
 
 struct MHD_Daemon *init_mhd(const cJSON *json) {
   const cJSON *json_ssl = cJSON_GetObjectItemCaseSensitive(json, "ssl");
+  const cJSON *json_image_directory =
+      cJSON_GetObjectItemCaseSensitive(json, "image_directory");
+  const cJSON *json_static_file_root_directory =
+      cJSON_GetObjectItemCaseSensitive(json, "static_file_root_directory");
   const cJSON *json_ssl_crt_path =
       cJSON_GetObjectItemCaseSensitive(json_ssl, "crt_path");
   const cJSON *json_ssl_key_path =
@@ -180,13 +258,17 @@ struct MHD_Daemon *init_mhd(const cJSON *json) {
       !cJSON_IsString(json_ssl_crt_path) ||
       !cJSON_IsString(json_ssl_key_path) ||
       !cJSON_IsString(json_auth_username) ||
-      !cJSON_IsString(json_auth_password)) {
+      !cJSON_IsString(json_auth_password) ||
+      !cJSON_IsString(json_image_directory) ||
+      !cJSON_IsString(json_static_file_root_directory)) {
     syslog(LOG_ERR, "Malformed JSON config file");
     return NULL;
   }
 
   http_auth_username = json_auth_username->valuestring;
   http_auth_password = json_auth_password->valuestring;
+  image_directory = json_image_directory->valuestring;
+  static_file_root_directory = json_static_file_root_directory->valuestring;
 
   struct sockaddr_in server_addr;
   memset(&server_addr, 0, sizeof(server_addr));

@@ -4,7 +4,11 @@
 
 #include <cjson/cJSON.h>
 
+#include <dirent.h>
+#include <errno.h>
+#include <linux/limits.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <syslog.h>
 #include <time.h>
@@ -46,7 +50,7 @@ cJSON *get_rack_door_states_json() {
   cJSON *dto = cJSON_CreateObject();
   if (dto == NULL) {
     goto err_failure;
-  }  
+  }
   const ssize_t row_count = get_top_six_door_states(ids, record_times, states);
   cJSON *entries = cJSON_AddArrayToObject(dto, "data");
   if (entries == NULL) {
@@ -66,5 +70,109 @@ cJSON *get_rack_door_states_json() {
 err_failure:
   syslog(LOG_ERR, "cJSON_CreateObject() returns NULL");
   cJSON_Delete(dto);
+  return NULL;
+}
+
+char *read_file(const char *root_directory, const char *path, size_t *length) {
+  *length = 0;
+  FILE *fp;
+  char *buffer = NULL;
+  char image_path[PATH_MAX] = {0};
+  strcat(image_path, root_directory);
+  if (strlen(image_path) + strlen(path) < PATH_MAX - 2) {
+    strcat(image_path, path);
+  }
+  fp = fopen(image_path, "rb");
+  if (fp == NULL) {
+    syslog(LOG_ERR, "fopen() failed: %d(%s)", errno, strerror(errno));
+    goto err_fopen;
+  }
+
+  fseek(fp, 0, SEEK_END);
+  *length = ftell(fp);
+  rewind(fp);
+
+  buffer = malloc(*length);
+  if (buffer == NULL) {
+    syslog(LOG_ERR, "malloc() failed");
+    *length = 0;
+    goto err_malloc;
+  }
+
+  if (fread(buffer, 1, *length, fp) != *length) {
+    *length = 0;
+    syslog(LOG_ERR, "fread() failed");
+    free(buffer);
+  }
+
+err_malloc:
+  (void)fclose(fp);
+err_fopen:
+  return buffer;
+}
+
+int filename_compare(const void *a, const void *b) {
+  return strcmp(*(const char **)a, *(const char **)b);
+}
+
+cJSON *get_images_list_json(const char *image_directory) {
+  cJSON *dto = cJSON_CreateObject();
+  if (dto == NULL) {
+    syslog(LOG_ERR, "cJSON allocation failed");
+    goto cJSON_CreateObject;
+  }
+  cJSON *json_filenames = cJSON_AddArrayToObject(dto, "data");
+  if (json_filenames == NULL) {
+    syslog(LOG_ERR, "cJSON_AddArrayToObject() failed");
+    goto err_cJSON_AddArrayToObject;
+  }
+  ssize_t filenames_capacity = 1;
+  ssize_t filenames_count = 0;
+  char **filenames = malloc(sizeof(char *) * filenames_capacity);
+  if (filenames == NULL) {
+    syslog(LOG_ERR, "malloc() failed");
+    goto err_malloc;
+  }
+
+  DIR *d = opendir(image_directory);
+  struct dirent *dir;
+  if (d) {
+    while ((dir = readdir(d)) != NULL) {
+      if (dir->d_name[0] != '.') {
+        if (filenames_count >= filenames_capacity) {
+          filenames_capacity *= 2;
+          char **t = realloc(filenames, filenames_capacity * sizeof(char *));
+          if (t == NULL) {
+            syslog(LOG_ERR, "realloc() failed, abort reading more filenames");
+            break;
+          }
+          filenames = t;
+        }
+        filenames[filenames_count] =
+            malloc(sizeof(char) * strlen(dir->d_name) + 1);
+        if (filenames[filenames_count] == NULL) {
+          syslog(LOG_ERR, "malloc() failed, abort reading more filenames");
+          break;
+        }
+        strcpy(filenames[filenames_count], dir->d_name);
+        ++filenames_count;
+      }
+    }
+    closedir(d);
+    qsort(filenames, filenames_count, sizeof(char *), filename_compare);
+    for (ssize_t i = 0; i < filenames_count; ++i) {
+      // cJSON_CreateString() makes copy of the string.
+      cJSON_AddItemToArray(json_filenames, cJSON_CreateString(filenames[i]));
+      free(filenames[i]);
+    }
+  } else {
+    syslog(LOG_ERR, "opendir() failed");
+  }
+  free(filenames);
+  return dto;
+err_malloc:
+err_cJSON_AddArrayToObject:
+  cJSON_Delete(dto);
+cJSON_CreateObject:
   return NULL;
 }

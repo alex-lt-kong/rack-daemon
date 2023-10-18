@@ -52,7 +52,7 @@ const char *parse_args(int argc, char *argv[]) {
          -1) {
     switch (opt) {
     case 'c':
-      return strdup(optarg);
+      return optarg;
     }
   }
   print_usage(argv[0]);
@@ -66,23 +66,24 @@ cJSON *read_config_file(const char *config_path) {
     _exit(1);
   }
   fseek(fp, 0, SEEK_END);
-  size_t fsize = ftell(fp);
+  ssize_t file_size = ftell(fp);
   fseek(fp, 0, SEEK_SET);
 
-  char *json_buf = malloc(fsize + 1);
+  char *json_buf = malloc((file_size + 1) * sizeof(char));
   if (json_buf == NULL) {
     fprintf(stderr, "Error: Unable to open malloc() memory for file [%s]\n",
             config_path);
     _exit(1);
   }
-  fread(json_buf, fsize, 1, fp);
+  fread(json_buf, file_size, 1, fp);
   fclose(fp);
-  cJSON *json = cJSON_Parse(json_buf);
+  // Seems fopen()/fread() does not guarantee null-termination...
+  cJSON *json = cJSON_ParseWithLength(json_buf, file_size);
+  free(json_buf);
   if (json == NULL) {
     fprintf(stderr, "Error: Unable to parse [%s] as JSON file\n", config_path);
     _exit(1);
   }
-  syslog(LOG_INFO, "Content of [%s]:\n%s", config_path, cJSON_Print(json));
   return json;
 }
 
