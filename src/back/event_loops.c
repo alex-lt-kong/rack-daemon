@@ -40,8 +40,7 @@ void *ev_set_7seg_display() {
     values[7] = fl % 10;
     show(values, dots);
   }
-  char exit_msg[] = "ev_set_7seg_display() quits gracefully.\n";
-  syslog(LOG_INFO, "%s", exit_msg);
+  syslog(LOG_INFO, "ev_set_7seg_display() quits gracefully.");
   return NULL;
 }
 

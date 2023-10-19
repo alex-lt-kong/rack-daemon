@@ -1,5 +1,5 @@
 {
-  "name": "rack-monitor",
+  "name": "rack-daemon",
   "version": "1.0.0",
   "description": "Monitor the environment of a rack cabinet",
   "main": "index.js",
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/alex-lt-kong/rack-monitor.git"
+    "url": "git+https://github.com/alex-lt-kong/rack-daemon.git"
   },
   "devDependencies": {
     "@babel/core": "^7.18.5",
@@ -17,26 +17,18 @@
     "@babel/preset-react": "^7.18.6",
     "babelify": "^10.0.0",
     "browserify": "^17.0.0",
-    "eslint": "^8.23.0",
-    "eslint-config-google": "^0.14.0",
-    "eslint-plugin-react": "^7.30.1",
     "tinyify": "^3.1.0"
   },
   "dependencies": {
     "@emotion/react": "^11.10.4",
     "@emotion/styled": "^11.10.4",
     "axios": "^0.27.2",
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "express-basic-auth": "^1.2.1",
     "mui-datatables": "^4.2.2",
     "nodemon": "^3.0.1",
-    "prop-types": "^15.8.1",
     "react": "^17.0.2",
-    "react-dom": "^17.0.2",
-    "sqlite3": "^5.0.11"
+    "react-dom": "^17.0.2"
   },
   "author": "",
   "license": "MIT",
-  "homepage": "https://github.com/alex-lt-kong/rack-monitor/#README.md"
+  "homepage": "https://github.com/alex-lt-kong/rack-daemon/#README.md"
 }

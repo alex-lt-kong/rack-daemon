@@ -17,6 +17,7 @@ const char *http_auth_username;
 const char *http_auth_password;
 const char *image_directory;
 const char *static_file_root_directory;
+const char *advertised_addr;
 
 int detect_directory_traversal(const char *path) {
   // Check for use of "../" to traverse up the directory hierarchy
@@ -36,6 +37,18 @@ int detect_directory_traversal(const char *path) {
 
   // Path passed all checks
   return 0;
+}
+
+int http_authentication_successful(struct MHD_Connection *conn) {
+  char *user;
+  char *pass = NULL;
+
+  user = MHD_basic_auth_get_username_password(conn, &pass);
+  int fail = ((user == NULL) || (0 != strcmp(user, http_auth_username)) ||
+              (0 != strcmp(pass, http_auth_password)));
+  MHD_free(user);
+  MHD_free(pass);
+  return !fail;
 }
 
 enum MHD_Result handler_get_logged_in_user(struct MHD_Connection *conn) {
@@ -100,7 +113,7 @@ enum MHD_Result handler_get_images_jpg(struct MHD_Connection *conn) {
 
     goto finalize_image_resp;
   }
-  size_t image_length = 0;
+  ssize_t image_length = 0;
   char *image_buffer = read_file(image_directory, image_name, &image_length);
   if (image_length > 0) {
     resp = MHD_create_response_from_buffer(image_length, (void *)image_buffer,
@@ -116,6 +129,7 @@ finalize_image_resp:
   MHD_destroy_response(resp);
   return ret;
 }
+
 enum MHD_Result handler_get_images_list_json(struct MHD_Connection *conn) {
   cJSON *dto = get_images_list_json(image_directory);
   enum MHD_Result ret;
@@ -130,10 +144,34 @@ enum MHD_Result handler_get_images_list_json(struct MHD_Connection *conn) {
   return ret;
 }
 
+enum MHD_Result handler_root(struct MHD_Connection *conn) {
+  enum MHD_Result ret;
+  struct MHD_Response *resp = NULL;
+  resp = MHD_create_response_from_buffer(0, NULL, MHD_RESPMEM_MUST_FREE);
+  char main_page_url[PATH_MAX] = {0};
+  strcpy(main_page_url, advertised_addr);
+  strcat(main_page_url, "/html/index.html");
+  MHD_add_response_header(resp, "Location", main_page_url);
+  ret = MHD_queue_response(conn, MHD_HTTP_MOVED_PERMANENTLY, resp);
+  MHD_destroy_response(resp);
+  return ret;
+}
+
+enum MHD_Result handler_auth_failed(struct MHD_Connection *conn) {
+  struct MHD_Response *resp = NULL;
+  enum MHD_Result ret;
+  const char msg[] = "Access denied";
+  resp = MHD_create_response_from_buffer(strlen(msg), (void *)msg,
+                                         MHD_RESPMEM_MUST_COPY);
+  ret = MHD_queue_basic_auth_fail_response(conn, "Rack daemon Realm", resp);
+  MHD_destroy_response(resp);
+  return ret;
+}
+
 enum MHD_Result handler_fallback(struct MHD_Connection *conn, const char *url) {
   enum MHD_Result ret;
   struct MHD_Response *resp = NULL;
-  size_t file_length = 0;
+  ssize_t file_length = 0;
   char *file_buffer = read_file(static_file_root_directory, url, &file_length);
   if (file_length > 0) {
     resp = MHD_create_response_from_buffer(file_length, (void *)file_buffer,
@@ -141,7 +179,7 @@ enum MHD_Result handler_fallback(struct MHD_Connection *conn, const char *url) {
     ret = MHD_queue_response(conn, MHD_HTTP_OK, resp);
     goto finalize_file_resp;
   }
-  const char err_msg[] = "Error opening file";
+  const char err_msg[] = "File not found";
   resp = MHD_create_response_from_buffer(strlen(err_msg), (void *)err_msg,
                                          MHD_RESPMEM_MUST_COPY);
   ret = MHD_queue_response(conn, MHD_HTTP_NOT_FOUND, resp);
@@ -160,12 +198,6 @@ request_handler(__attribute__((unused)) void *cls, struct MHD_Connection *conn,
                 __attribute__((unused)) const char *upload_data,
                 __attribute__((unused)) size_t *upload_data_size, void **ptr) {
   static int aptr;
-  struct MHD_Response *resp = NULL;
-  enum MHD_Result ret;
-  char *user;
-  char *pass = NULL;
-  int fail;
-
   if (0 != strcmp(method, MHD_HTTP_METHOD_GET))
     return MHD_NO; /* unexpected method */
   if (&aptr != *ptr) {
@@ -175,21 +207,9 @@ request_handler(__attribute__((unused)) void *cls, struct MHD_Connection *conn,
   }
   *ptr = NULL; /* reset when done */
 
-  user = MHD_basic_auth_get_username_password(conn, &pass);
-  fail = ((user == NULL) || (0 != strcmp(user, http_auth_username)) ||
-          (0 != strcmp(pass, http_auth_password)));
-  MHD_free(user);
-  MHD_free(pass);
-
-  if (fail && 0) {
-    const char msg[] = "Access denied";
-    resp = MHD_create_response_from_buffer(strlen(msg), (void *)msg,
-                                           MHD_RESPMEM_MUST_COPY);
-    ret = MHD_queue_basic_auth_fail_response(conn, "PA Client Realm", resp);
-    MHD_destroy_response(resp);
-    return ret;
+  if (!http_authentication_successful(conn)) {
+    return handler_auth_failed(conn);
   }
-
   if (strcmp(url, "/get_logged_in_user/") == 0) {
     return handler_get_logged_in_user(conn);
   }
@@ -204,6 +224,9 @@ request_handler(__attribute__((unused)) void *cls, struct MHD_Connection *conn,
   }
   if (strcmp(url, "/get_images_list_json/") == 0) {
     return handler_get_images_list_json(conn);
+  }
+  if (strcmp(url, "/") == 0) {
+    return handler_root(conn);
   }
   return handler_fallback(conn, url);
 }
@@ -239,6 +262,8 @@ struct MHD_Daemon *init_mhd(const cJSON *json) {
       cJSON_GetObjectItemCaseSensitive(json, "image_directory");
   const cJSON *json_static_file_root_directory =
       cJSON_GetObjectItemCaseSensitive(json, "static_file_root_directory");
+  const cJSON *json_advertised_addr =
+      cJSON_GetObjectItemCaseSensitive(json, "advertised_addr");
   const cJSON *json_ssl_crt_path =
       cJSON_GetObjectItemCaseSensitive(json_ssl, "crt_path");
   const cJSON *json_ssl_key_path =
@@ -269,6 +294,7 @@ struct MHD_Daemon *init_mhd(const cJSON *json) {
   http_auth_password = json_auth_password->valuestring;
   image_directory = json_image_directory->valuestring;
   static_file_root_directory = json_static_file_root_directory->valuestring;
+  advertised_addr = json_advertised_addr->valuestring;
 
   struct sockaddr_in server_addr;
   memset(&server_addr, 0, sizeof(server_addr));

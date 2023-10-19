@@ -10,7 +10,7 @@
 #include <sys/syslog.h>
 #include <time.h>
 
-char db_path[PATH_MAX];
+const char *db_path;
 
 ssize_t
 get_top_six_door_states(int ids[],
@@ -60,10 +60,15 @@ err_sqlite3_open:
   return retval;
 }
 
-int prepare_database() {
+int prepare_database(const char *_db_path) {
   int retval = 0;
+  if (_db_path == NULL) {
+    retval = -1;
+    syslog(LOG_ERR, "Invalid database path (NULL)");
+    goto err_null_db_path;
+  }
   sqlite3 *db;
-  snprintf(db_path, PATH_MAX, "%s", getenv("RD_DB_DIR"));
+  db_path = _db_path;
   const char sql_create_stmts[][512] = {
       "CREATE TABLE IF NOT EXISTS door_state"
       "("
@@ -82,6 +87,7 @@ int prepare_database() {
   char *sqlite_err_msg = NULL;
   const size_t table_count =
       sizeof(sql_create_stmts) / sizeof(sql_create_stmts[0]);
+  syslog(LOG_INFO, "Loading database from [%s]", db_path);
   if (sqlite3_open(db_path, &db) != SQLITE_OK) {
     syslog(LOG_ERR, "Cannot open database [%s]: %s. INSERT will be skipped",
            db_path, sqlite3_errmsg(db));
@@ -101,6 +107,7 @@ err_sqlite3_open:
     syslog(LOG_ERR, "sqlite3_close() failed.");
   }
   syslog(LOG_INFO, "%zu tables @ %s prepared", table_count, db_path);
+err_null_db_path:
   return retval;
 }
 

@@ -5,7 +5,7 @@
 
 #include <stdbool.h>
 
-int prepare_database();
+int prepare_database(const char *_db_path);
 void save_data_to_db();
 void save_rack_door_state_to_db(bool current_status);
 ssize_t

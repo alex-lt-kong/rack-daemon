@@ -16,7 +16,7 @@ int get_reading_from_sensor(const char *path) {
   int temp;
   fd = open(path, O_RDONLY);
   if (fd >= 0) {
-    if (read(fd, buf, sizeof(buf)) > 0) {
+    if (read(fd, buf, sizeof(buf)) >= 0) {
       char *temp_str = strstr(buf, "t=") + 2;
       (void)sscanf(temp_str, "%d", &temp);
     } else {
@@ -44,12 +44,13 @@ void load_sensor(const cJSON *json, const char *key, char **sensor_paths,
       // sensor_paths[*num_sensors] will be pointing to s->valuestring, but
       // s->valuestring will only be free()ed at the very end of the program
       sensor_paths[*num_sensors] = s->valuestring;
-      syslog(LOG_INFO, "%s", sensor_paths[*num_sensors]);
+
       if (get_reading_from_sensor(sensor_paths[*num_sensors]) !=
           BAD_TEMPERATURE) {
+        syslog(LOG_INFO, "[%s] Loaded", sensor_paths[*num_sensors]);
         ++*num_sensors;
       } else {
-        syslog(LOG_INFO, "Malfunctioning %s [%s] will be excluded", key,
+        syslog(LOG_INFO, "[%s] malfunctions, will be excluded",
                sensor_paths[*num_sensors]);
       }
       if (*num_sensors >= MAX_SENSORS) {

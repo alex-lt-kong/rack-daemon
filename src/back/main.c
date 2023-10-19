@@ -132,7 +132,8 @@ int main(int argc, char *argv[]) {
   cJSON *json = read_config_file(parse_args(argc, argv));
   (void)openlog("rd", LOG_PID | LOG_CONS, 0);
   syslog(LOG_INFO, "rd started\n");
-  if (prepare_database() != 0) {
+  if (prepare_database(cJSON_GetObjectItemCaseSensitive(json, "database_path")
+                           ->valuestring) != 0) {
     retval = -1;
     goto err_prepare_database;
   }

@@ -73,41 +73,61 @@ err_failure:
   return NULL;
 }
 
-char *read_file(const char *root_directory, const char *path, size_t *length) {
-  *length = 0;
+char *read_file(const char *root_directory, const char *path,
+                ssize_t *file_len) {
+  *file_len = 0;
   FILE *fp;
   char *buffer = NULL;
-  char image_path[PATH_MAX] = {0};
-  strcat(image_path, root_directory);
-  if (strlen(image_path) + strlen(path) < PATH_MAX - 2) {
-    strcat(image_path, path);
+  char file_path[PATH_MAX] = {0};
+  strcat(file_path, root_directory);
+  if (strlen(file_path) + strlen(path) < PATH_MAX - 2) {
+    strcat(file_path, path);
   }
-  fp = fopen(image_path, "rb");
+  // The tricky part is that C standard does NOT seems to mention what is
+  // expected to happen if we pass a directory, not a filepath, to fopen()
+  // Seems on some platforms, fopen() will not fail.
+  DIR *dir = opendir(file_path);
+  if (dir) {
+    closedir(dir);
+    goto err_is_dir;
+  }
+
+  fp = fopen(file_path, "rb");
   if (fp == NULL) {
-    syslog(LOG_ERR, "fopen() failed: %d(%s)", errno, strerror(errno));
+    syslog(LOG_ERR, "fopen(%s) failed: %d(%s)", file_path, errno,
+           strerror(errno));
+    *file_len = 0;
     goto err_fopen;
   }
 
-  fseek(fp, 0, SEEK_END);
-  *length = ftell(fp);
-  rewind(fp);
+  (void)fseek(fp, 0, SEEK_END);
+  *file_len = ftell(fp);
+  if (*file_len == -1) {
+    file_len = 0;
+    syslog(LOG_ERR, "ftell() failed: %d(%s)", errno, strerror(errno));
+    goto err_ftell;
+  }
+  (void)rewind(fp);
 
-  buffer = malloc(*length);
+  buffer = malloc(*file_len);
   if (buffer == NULL) {
-    syslog(LOG_ERR, "malloc() failed");
-    *length = 0;
+    syslog(LOG_ERR, "%d@%s: malloc(%ld) failed: %d(%s)", __LINE__, __FILE__,
+           *file_len, errno, strerror(errno));
+    *file_len = 0;
     goto err_malloc;
   }
 
-  if (fread(buffer, 1, *length, fp) != *length) {
-    *length = 0;
+  if (fread(buffer, 1, *file_len, fp) != *file_len) {
+    *file_len = 0;
     syslog(LOG_ERR, "fread() failed");
     free(buffer);
   }
 
 err_malloc:
+err_ftell:
   (void)fclose(fp);
 err_fopen:
+err_is_dir:
   return buffer;
 }
 
