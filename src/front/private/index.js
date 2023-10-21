@@ -53,7 +53,7 @@ class TempsAndFans extends React.Component {
       let readings = "";
       for (let i = 0; i < rawReadings.length; ++i) {
         if (rawReadings[i] != BAD_TEMP) {
-          readings += `${Math.round((rawReadings[i] / 1000) * 10) / 10}°C`;
+          readings += `${Math.round((rawReadings[i] / 1000) * 10) / 10}--°C`;
         } else {
           readings += `<Offline>`;
         }
