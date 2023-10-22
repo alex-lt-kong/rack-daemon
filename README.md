@@ -31,6 +31,9 @@ make install
 - `OpenCV`: Install following
   [this link](https://github.com/alex-lt-kong/camera-server/blob/main/helper/build-notes.md).
 
+- `iotctrl`: used to read temperature sensors, refer to
+  [here](https://github.com/alex-lt-kong/libiotctrl)
+
 #### Quality assurance
 
 - Instead of `cmake ../`, run `cmake .. -DBUILD_ASAN=ON` /

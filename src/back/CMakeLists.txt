@@ -10,5 +10,5 @@ add_library(utils utils.c)
 
 target_link_libraries(rd 
     sensors database http_service_webapi http_service_application event_loops 7seg_display utils
-    pigpio rt pthread sqlite3 microhttpd cjson
+    iotctrl pigpio rt pthread sqlite3 microhttpd cjson
 )

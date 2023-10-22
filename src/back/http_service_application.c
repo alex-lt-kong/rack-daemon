@@ -19,14 +19,14 @@ cJSON *get_temp_control_json() {
     syslog(LOG_ERR, "cJSON_CreateObject() returns NULL");
     return NULL;
   }
-  const size_t external_temps_size = pl.num_ext_sensors * 6 + 1;
-  const size_t internal_temps_size = pl.num_int_sensors * 6 + 1;
+  const size_t external_temps_size = pl.num_ext_sensors * 20 + 1;
+  const size_t internal_temps_size = pl.num_int_sensors * 20 + 1;
   char external_temps_str[external_temps_size];
   char internal_temps_str[internal_temps_size];
-  (void)concat_int_arr_to_cstr(pl.num_ext_sensors, pl.ext_temps,
-                               external_temps_str);
-  (void)concat_int_arr_to_cstr(pl.num_int_sensors, pl.int_temps,
-                               internal_temps_str);
+  (void)concat_float_arr_to_cstr(pl.num_ext_sensors, pl.ext_temps,
+                                 external_temps_size, external_temps_str);
+  (void)concat_float_arr_to_cstr(pl.num_int_sensors, pl.int_temps,
+                                 internal_temps_size, internal_temps_str);
   cJSON_AddItemToObject(dto, "external_temps",
                         cJSON_CreateString(external_temps_str));
   cJSON_AddItemToObject(dto, "internal_temps",

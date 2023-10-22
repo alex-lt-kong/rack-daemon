@@ -27,9 +27,9 @@ void *ev_set_7seg_display() {
     const int _int_temp = pl.int_temp;
 
     values[0] = 10; // means turning the digit off
-    values[1] = _int_temp % 100000 / 10000;
-    values[2] = _int_temp % 10000 / 1000;
-    values[3] = _int_temp % 1000 / 100;
+    values[1] = _int_temp % 100 / 10;
+    values[2] = _int_temp % 10;
+    values[3] = _int_temp * 10 % 10;
 
     values[4] = fl % 10000 / 1000;
     if (values[4] == 0) {
@@ -67,14 +67,14 @@ void *ev_apply_fans_load() {
   gpioSetPWMfrequency(fans_pin, 50); // Set GPIO23 to 50Hz.
 
   // Wait for all sensors to be read at least once
-  sleep((pl.num_ext_sensors + pl.num_int_sensors) * 5);
+  sleep((pl.num_ext_sensors + pl.num_int_sensors + 1) * 5);
 
   while (!ev_flag) {
     // Strictly speaking, there could be race conditions, but the consequence
     // should be fine for this particular purpose
     int _fans_load = (pl.int_temp == pl.ext_temp && pl.int_temp == 0)
                          ? 0
-                         : ((pl.int_temp - pl.ext_temp) / 10 / 6);
+                         : ((pl.int_temp - pl.ext_temp) / 6.0 * 100);
     // i.e., (int_temp - ext_temp) > 6 degrees Celsius means 100% fans load
     _fans_load = _fans_load > 100 ? 100 : _fans_load;
     _fans_load = _fans_load < 0 ? 0 : _fans_load;

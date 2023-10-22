@@ -119,8 +119,14 @@ void save_data_to_db() {
   time_t now;
   int res;
   sqlite3 *db;
-  char ext_temps[pl.num_ext_sensors * 7 + 1];
-  char int_temps[pl.num_ext_sensors * 7 + 1];
+  const size_t ext_temps_size = pl.num_ext_sensors * 20 + 1;
+  const size_t int_temps_size = pl.num_int_sensors * 20 + 1;
+  char ext_temps[ext_temps_size];
+  char int_temps[int_temps_size];
+  // A bug discovered by ASAN: we must initialize ext_temps and int_temps;
+  // otherwise we may call strlen() over non-null-terminated c-string
+  memset(int_temps, '\0', pl.num_int_sensors);
+  memset(ext_temps, '\0', pl.num_ext_sensors);
 
   if (sqlite3_open(db_path, &db) != SQLITE_OK) {
     syslog(LOG_ERR, "Cannot open database [%s]: %s. INSERT skipped", db_path,
@@ -137,11 +143,10 @@ void save_data_to_db() {
   time(&now);
   char buf[sizeof(SAMPLE_ISO_DT_STRING)];
   strftime(buf, sizeof buf, "%Y-%m-%d %H:%M:%S", localtime(&now));
-
-  if (concat_int_arr_to_cstr(pl.num_ext_sensors, pl.ext_temps, ext_temps) !=
-          0 ||
-      concat_int_arr_to_cstr(pl.num_int_sensors, pl.int_temps, int_temps) !=
-          0) {
+  if (concat_float_arr_to_cstr(pl.num_ext_sensors, pl.ext_temps, ext_temps_size,
+                               ext_temps) != 0 ||
+      concat_float_arr_to_cstr(pl.num_int_sensors, pl.int_temps, int_temps_size,
+                               int_temps) != 0) {
     syslog(LOG_ERR, "concat_int_arr_to_cstr() failed. INSERT skipped");
     goto err_temps_str;
   }

@@ -1,6 +1,7 @@
 #include "global_vars.h"
 
 #include <cjson/cJSON.h>
+#include <iotctrl/temp-sensor.h>
 
 #include <errno.h>
 #include <fcntl.h>
@@ -10,29 +11,15 @@
 #include <sys/syslog.h>
 #include <unistd.h>
 
-int get_reading_from_sensor(const char *path) {
-  char buf[PATH_MAX];
-  int fd;
-  int temp;
-  fd = open(path, O_RDONLY);
-  if (fd >= 0) {
-    if (read(fd, buf, sizeof(buf)) >= 0) {
-      char *temp_str = strstr(buf, "t=") + 2;
-      (void)sscanf(temp_str, "%d", &temp);
-    } else {
-      temp = BAD_TEMPERATURE;
-      syslog(LOG_ERR, "read() from %s failed: %d(%s)", path, errno,
-             strerror(errno));
-    }
-    (void)close(fd);
+float get_reading_from_sensor(const char *path) {
+  int temp_raw = get_temperature(path, 0);
+  float temp_parsed = INVALID_TEMP;
+  if (temp_raw == INVALID_TEMP) {
+    syslog(LOG_ERR, "failed to read from sensor [%s]", path);
   } else {
-    temp = BAD_TEMPERATURE;
-    syslog(LOG_ERR,
-           "Unable to open device at [%s], errno: %d(%s), skipped this "
-           "read attempt.",
-           path, errno, strerror(errno));
+    temp_parsed = temp_raw / 10.0;
   }
-  return temp;
+  return temp_parsed;
 }
 
 void load_sensor(const cJSON *json, const char *key, char **sensor_paths,
@@ -45,8 +32,7 @@ void load_sensor(const cJSON *json, const char *key, char **sensor_paths,
       // s->valuestring will only be free()ed at the very end of the program
       sensor_paths[*num_sensors] = s->valuestring;
 
-      if (get_reading_from_sensor(sensor_paths[*num_sensors]) !=
-          BAD_TEMPERATURE) {
+      if (get_reading_from_sensor(sensor_paths[*num_sensors]) != INVALID_TEMP) {
         syslog(LOG_INFO, "[%s] Loaded", sensor_paths[*num_sensors]);
         ++*num_sensors;
       } else {
@@ -81,15 +67,16 @@ void load_sensors(const cJSON *json) {
 }
 
 void save_temp_to_payload(char *sensors[], const size_t sensor_count,
-                          int32_t *temps, int32_t *temp) {
+                          float *temps, float *temp) {
 
   size_t valid_temps_count = 0;
-  int _temp = 0;
+  float _temp = 0;
   for (size_t i = 0; i < sensor_count && !ev_flag; ++i) {
     sleep(1);
     // takes around 1 sec to read value from one sensor.
-    if ((temps[i] = get_reading_from_sensor(sensors[i])) != BAD_TEMPERATURE) {
+    if ((temps[i] = get_reading_from_sensor(sensors[i])) != INVALID_TEMP) {
       ++valid_temps_count;
+      _temp += temps[i];
     }
     sleep(1);
   }

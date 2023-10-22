@@ -15,10 +15,10 @@ struct Payload {
    * https://www.gnu.org/software/libc/manual/html_node/Atomic-Types.html.
    * As a result, all members of Payload have to be either char or int;
    * otherwise, we may need to use mutex to aovid data corruption*/
-  int32_t int_temps[MAX_SENSORS];
-  int32_t ext_temps[MAX_SENSORS];
-  int32_t int_temp;
-  int32_t ext_temp;
+  float int_temps[MAX_SENSORS];
+  float ext_temps[MAX_SENSORS];
+  float int_temp;
+  float ext_temp;
   char *int_sensor_paths[MAX_SENSORS];
   char *ext_sensor_paths[MAX_SENSORS];
   size_t num_ext_sensors;
