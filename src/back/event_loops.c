@@ -1,58 +1,32 @@
 #include "event_loops.h"
-#include "7seg_display.h"
 #include "database.h"
 #include "global_vars.h"
 #include "sensors.h"
 
+#include <iotctrl/7segment-display.h>
+
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/limits.h>
+#include <pigpio.h>
 #include <sqlite3.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/syslog.h>
 #include <unistd.h>
 
-void *ev_set_7seg_display() {
-  syslog(LOG_INFO, "ev_set_7seg_display() started.");
-  init_7seg_display();
-  uint8_t values[DIGIT_COUNT];
-  bool dots[DIGIT_COUNT] = {0, 0, 1, 0, 0, 0, 1, 0};
-
-  while (!ev_flag) {
-    // We need to use an intermediary variable to avoid accessing pl members
-    // multiple times; otherwise we can still trigger race condition
-
-    const uint16_t fl = pl.fans_load * 10;
-    const int _int_temp = pl.int_temp;
-
-    values[0] = 10; // means turning the digit off
-    values[1] = _int_temp % 100 / 10;
-    values[2] = _int_temp % 10;
-    values[3] = _int_temp * 10 % 10;
-
-    values[4] = fl % 10000 / 1000;
-    if (values[4] == 0) {
-      values[4] = 10; // means turning the digit off
-    }
-    values[5] = fl % 1000 / 100;
-    values[6] = fl % 100 / 10;
-    values[7] = fl % 10;
-    show(values, dots);
-  }
-  syslog(LOG_INFO, "ev_set_7seg_display() quits gracefully.");
-  return NULL;
-}
-
 void *ev_get_temp_from_sensors() {
   syslog(LOG_INFO, "ev_get_temp_from_sensors() started.");
-
+  // TODO: move to JSON config
+  iotctrl_init_display("/dev/gpiochip0", 8, 17, 11, 18, 2);
   while (!ev_flag) {
     save_temp_to_payload(pl.int_sensor_paths, pl.num_int_sensors, pl.int_temps,
                          &pl.int_temp);
     save_temp_to_payload(pl.ext_sensor_paths, pl.num_ext_sensors, pl.ext_temps,
                          &pl.ext_temp);
+    iotctrl_update_value_two_four_digit_floats(pl.int_temp, pl.fans_load);
   }
+  iotctrl_finalize_7seg_display();
   syslog(LOG_INFO, "ev_get_temp_from_sensors() quits gracefully.");
   return NULL;
 }
@@ -74,8 +48,8 @@ void *ev_apply_fans_load() {
     // should be fine for this particular purpose
     int _fans_load = (pl.int_temp == pl.ext_temp && pl.int_temp == 0)
                          ? 0
-                         : ((pl.int_temp - pl.ext_temp) / 6.0 * 100);
-    // i.e., (int_temp - ext_temp) > 6 degrees Celsius means 100% fans load
+                         : ((pl.int_temp - pl.ext_temp) / 8.0 * 100);
+    // i.e., (int_temp - ext_temp) > 8 degrees Celsius means 100% fans load
     _fans_load = _fans_load > 100 ? 100 : _fans_load;
     _fans_load = _fans_load < 0 ? 0 : _fans_load;
     pl.fans_load = _fans_load;

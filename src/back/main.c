@@ -1,4 +1,3 @@
-#include "7seg_display.h"
 #include "database.h"
 #include "event_loops.h"
 #include "global_vars.h"
@@ -157,8 +156,7 @@ int main(int argc, char *argv[]) {
   load_sensors(json);
   if (pthread_create(&tids[0], NULL, ev_get_temp_from_sensors, NULL) != 0 ||
       pthread_create(&tids[1], NULL, ev_apply_fans_load, NULL) != 0 ||
-      pthread_create(&tids[2], NULL, ev_monitor_rack_door, NULL) != 0 ||
-      pthread_create(&tids[3], NULL, ev_set_7seg_display, NULL) != 0) {
+      pthread_create(&tids[2], NULL, ev_monitor_rack_door, NULL) != 0) {
     syslog(LOG_ERR, "Failed to create essential threads, program will quit");
     ev_flag = 1;
     retval = -1;

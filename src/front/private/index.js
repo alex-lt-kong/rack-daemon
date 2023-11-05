@@ -48,12 +48,12 @@ class TempsAndFans extends React.Component {
   render() {
     function getTempString(value) {
       console.log(value);
-      const INVALID_TEMP = 0x7fff;
+      const IOTCTRL_INVALID_TEMP = 0x7fff;
       const rawReadings = value.split(",").map((ele) => Number(ele));
       let readings = "";
       for (let i = 0; i < rawReadings.length; ++i) {
-        if (rawReadings[i] != INVALID_TEMP) {
-          readings += `${rawReadings[i]}°C`;
+        if (rawReadings[i] != IOTCTRL_INVALID_TEMP) {
+          readings += `${parseInt(rawReadings[i])}°C`;
         } else {
           readings += `<Offline>`;
         }
@@ -334,7 +334,7 @@ class NavBar extends React.Component {
                 textDecoration: "none",
               }}
             >
-              RACK MONITOR
+              RACK DAEMON
             </Typography>
             <Typography
               variant="h6"

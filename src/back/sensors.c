@@ -12,9 +12,9 @@
 #include <unistd.h>
 
 float get_reading_from_sensor(const char *path) {
-  int temp_raw = get_temperature(path, 0);
-  float temp_parsed = INVALID_TEMP;
-  if (temp_raw == INVALID_TEMP) {
+  int temp_raw = iotctrl_get_temperature(path, 0);
+  float temp_parsed = IOTCTRL_INVALID_TEMP;
+  if (temp_raw == IOTCTRL_INVALID_TEMP) {
     syslog(LOG_ERR, "failed to read from sensor [%s]", path);
   } else {
     temp_parsed = temp_raw / 10.0;
@@ -32,7 +32,8 @@ void load_sensor(const cJSON *json, const char *key, char **sensor_paths,
       // s->valuestring will only be free()ed at the very end of the program
       sensor_paths[*num_sensors] = s->valuestring;
 
-      if (get_reading_from_sensor(sensor_paths[*num_sensors]) != INVALID_TEMP) {
+      if (get_reading_from_sensor(sensor_paths[*num_sensors]) !=
+          IOTCTRL_INVALID_TEMP) {
         syslog(LOG_INFO, "[%s] Loaded", sensor_paths[*num_sensors]);
         ++*num_sensors;
       } else {
@@ -74,7 +75,8 @@ void save_temp_to_payload(char *sensors[], const size_t sensor_count,
   for (size_t i = 0; i < sensor_count && !ev_flag; ++i) {
     sleep(1);
     // takes around 1 sec to read value from one sensor.
-    if ((temps[i] = get_reading_from_sensor(sensors[i])) != INVALID_TEMP) {
+    if ((temps[i] = get_reading_from_sensor(sensors[i])) !=
+        IOTCTRL_INVALID_TEMP) {
       ++valid_temps_count;
       _temp += temps[i];
     }
