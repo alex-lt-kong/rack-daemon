@@ -117,7 +117,7 @@ char *read_file(const char *root_directory, const char *path,
     goto err_malloc;
   }
 
-  if (fread(buffer, 1, *file_len, fp) != *file_len) {
+  if ((ssize_t)fread(buffer, 1, *file_len, fp) != *file_len) {
     *file_len = 0;
     syslog(LOG_ERR, "fread() failed");
     free(buffer);

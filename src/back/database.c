@@ -209,7 +209,8 @@ void save_rack_door_state_to_db(bool current_status) {
            sqlite3_errmsg(db));
     goto err_sqlite3_bind;
   }
-  if ((res = sqlite3_step(stmt)) != SQLITE_OK) {
+  res = sqlite3_step(stmt);
+  if (res != SQLITE_OK && res != SQLITE_DONE) {
     syslog(LOG_ERR, "%d@%s: sqlite3_step() failed: %d(%s). INSERT skipped",
            __LINE__, __FILE__, res, sqlite3_errmsg(db));
   }

@@ -67,8 +67,8 @@ void load_sensors(const cJSON *json) {
   syslog(LOG_INFO, "Loading internal sensors");
 }
 
-void save_temp_to_payload(char *sensors[], const size_t sensor_count,
-                          float *temps, float *temp) {
+void write_temps_payload(char *sensors[], const size_t sensor_count,
+                         float *temps, float *temp) {
 
   size_t valid_temps_count = 0;
   float _temp = 0;

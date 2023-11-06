@@ -15,25 +15,34 @@
 #include <sys/syslog.h>
 #include <unistd.h>
 
-void *ev_get_temp_from_sensors() {
-  syslog(LOG_INFO, "ev_get_temp_from_sensors() started.");
+void *ev_update_temps() {
+  syslog(LOG_INFO, "ev_update_temps() started.");
   // TODO: move to JSON config
-  iotctrl_init_display("/dev/gpiochip0", 8, 17, 11, 18, 2);
+  const struct iotctrl_7seg_display_connection_info conn = {8, 17, 11, 18, 2};
+  int ret_7seg;
+  if ((ret_7seg = iotctrl_init_display("/dev/gpiochip0", conn)) != 0) {
+    syslog(LOG_ERR,
+           "iotctrl_init_display() failed: %d. 7seg display will be disabled",
+           ret_7seg);
+  }
   while (!ev_flag) {
-    save_temp_to_payload(pl.int_sensor_paths, pl.num_int_sensors, pl.int_temps,
-                         &pl.int_temp);
-    save_temp_to_payload(pl.ext_sensor_paths, pl.num_ext_sensors, pl.ext_temps,
-                         &pl.ext_temp);
+    write_temps_payload(pl.int_sensor_paths, pl.num_int_sensors, pl.int_temps,
+                        &pl.int_temp);
+    write_temps_payload(pl.ext_sensor_paths, pl.num_ext_sensors, pl.ext_temps,
+                        &pl.ext_temp);
+    if (ret_7seg != 0) {
+      continue;
+    }
     iotctrl_update_value_two_four_digit_floats(pl.int_temp, pl.fans_load);
   }
   iotctrl_finalize_7seg_display();
-  syslog(LOG_INFO, "ev_get_temp_from_sensors() quits gracefully.");
+  syslog(LOG_INFO, "ev_update_temps() quits gracefully.");
   return NULL;
 }
 
-void *ev_apply_fans_load() {
+void *ev_update_fans_load() {
 
-  syslog(LOG_INFO, "ev_apply_fans_load() started.");
+  syslog(LOG_INFO, "ev_update_fans_load() started.");
 
   const uint16_t fans_pin = 23;
   const size_t interval_sec = 1800;
@@ -62,7 +71,7 @@ void *ev_apply_fans_load() {
       sleep(1);
     }
   }
-  syslog(LOG_INFO, "ev_apply_fans_load() quits gracefully.");
+  syslog(LOG_INFO, "ev_update_fans_load() quits gracefully.");
   return NULL;
 }
 

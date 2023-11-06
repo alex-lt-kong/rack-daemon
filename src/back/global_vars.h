@@ -23,7 +23,7 @@ struct Payload {
   char *ext_sensor_paths[MAX_SENSORS];
   size_t num_ext_sensors;
   size_t num_int_sensors;
-  int32_t fans_load;
+  _Atomic int32_t fans_load;
 };
 
 extern struct Payload pl;

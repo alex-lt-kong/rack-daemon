@@ -6,7 +6,7 @@
 
 void load_sensors(const cJSON *json);
 
-void save_temp_to_payload(char *sensors[], const size_t sensor_count,
-                          float *temps, float *temp);
+void write_temps_payload(char *sensors[], const size_t sensor_count,
+                         float *temps, float *temp);
 
 #endif /* SENSORS_H */
