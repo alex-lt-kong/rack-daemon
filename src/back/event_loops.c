@@ -18,7 +18,7 @@
 void *ev_update_temps() {
   syslog(LOG_INFO, "ev_update_temps() started.");
   // TODO: move to JSON config
-  const struct iotctrl_7seg_display_connection_info conn = {8, 17, 11, 18, 2};
+  const struct iotctrl_7seg_display_connection conn = {8, 17, 11, 18, 2};
   int ret_7seg;
   if ((ret_7seg = iotctrl_init_display("/dev/gpiochip0", conn)) != 0) {
     syslog(LOG_ERR,
