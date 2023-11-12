@@ -12,14 +12,14 @@
 #include <unistd.h>
 
 float get_reading_from_sensor(const char *path) {
-  int temp_raw = iotctrl_get_temperature(path, 0);
-  float temp_parsed = IOTCTRL_INVALID_TEMP;
-  if (temp_raw == IOTCTRL_INVALID_TEMP) {
-    syslog(LOG_ERR, "failed to read from sensor [%s]", path);
+  uint8_t sensor_count = 1;
+  int16_t readings[sensor_count];
+  int res = iotctrl_get_temperature(path, sensor_count, readings, 0);
+  if (res != 0 && readings[0] != IOTCTRL_INVALID_TEMP) {
+    return IOTCTRL_INVALID_TEMP;
   } else {
-    temp_parsed = temp_raw / 10.0;
+    return readings[0] / 10.0;
   }
-  return temp_parsed;
 }
 
 void load_sensor(const cJSON *json, const char *key, char **sensor_paths,
